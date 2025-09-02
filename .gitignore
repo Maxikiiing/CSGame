@@ -2,3 +2,7 @@ DerivedData/
 build/
 *.xcuserdatad
 .DS_Store
+DerivedData/
+build/
+*.xcuserdatad
+.DS_Store
