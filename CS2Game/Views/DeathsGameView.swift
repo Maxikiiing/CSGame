@@ -9,7 +9,7 @@ struct DeathsGameView: View {
     @State private var dataError: String? = nil
 
     // MARK: - Config
-    let multipliers: [Double] = [1.0, 0.5, 0.5, 0.5, 0.2, 0.2, 0.2, 0.1]
+    let multipliers: [Double] = [1.0, 0.5, 0.5, 0.5, 0.2, 0.2, 0.1, 0.1]
     let goal: Double = 100_000
 
     // MARK: - Derived
