@@ -25,7 +25,6 @@ struct GameMenuView: View {
                 // Menu options for different games
                 VStack(spacing: 12) {
                     NavigationLink {
-                        // Navigate to kills-based game
                         KillsGameView()
                             .toolbarBackground(Theme.bg, for: .navigationBar)
                             .toolbarBackground(.visible, for: .navigationBar)
@@ -34,12 +33,19 @@ struct GameMenuView: View {
                     }
 
                     NavigationLink {
-                        // Navigate to deaths-based game
                         DeathsGameView()
                             .toolbarBackground(Theme.bg, for: .navigationBar)
                             .toolbarBackground(.visible, for: .navigationBar)
                     } label: {
                         MenuCard(title: "100 000 Deaths", subtitle: "Place players to hit the goal", systemImage: "skull")
+                    }
+
+                    NavigationLink {
+                        AcesGameView()
+                            .toolbarBackground(Theme.bg, for: .navigationBar)
+                            .toolbarBackground(.visible, for: .navigationBar)
+                    } label: {
+                        MenuCard(title: "10 000 Aces", subtitle: "Place players to hit the goal", systemImage: "sparkles")
                     }
                 }
                 .padding(.top, 8)
@@ -57,11 +63,8 @@ struct GameMenuView: View {
 
 /// Reusable card used for each menu navigation link.
 private struct MenuCard: View {
-    /// Title displayed in bold on the card.
     let title: String
-    /// Subtitle shown beneath the title providing more detail.
     let subtitle: String
-    /// System image name displayed on the leading edge of the card.
     let systemImage: String
 
     var body: some View {

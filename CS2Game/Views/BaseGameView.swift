@@ -15,26 +15,20 @@ struct BaseGameView: View {
             let W = geo.size.width
             let horizPadding: CGFloat = 20
             let gridSpacing: CGFloat = 10
-            let columnsCount = 2 // 2 columns × 4 rows
+            let columnsCount = 2
 
-            // Center a compact grid (not full width)
             let maxGridWidth = min(W - 2*horizPadding, 340)
             let colWidth = (maxGridWidth - gridSpacing) / 2
 
-            // Compact slots
             let slotHeight = max(48, min(74, colWidth * 0.52))
-
-            // Slim candidate card
             let cardHeight = max(76, min(110, W * 0.28))
 
-            // Colors that flip to T-theme once goal is achieved
             let achieved = vm.runningTotal >= vm.config.goal
             let barColor = achieved ? Theme.tYellow : Theme.ctBlue
             let barTextColor = achieved ? Theme.tYellow : Theme.ctBlueDim
 
             ScrollView {
                 VStack(alignment: .center, spacing: 14) {
-                    // MARK: Header
                     Text(vm.config.title)
                         .font(.title).bold()
                         .foregroundStyle(Theme.ctBlue)
@@ -51,12 +45,10 @@ struct BaseGameView: View {
                             .frame(maxWidth: 260)
                     }
 
-                    // MARK: Main content
                     if let error = vm.dataError {
                         ErrorCard(message: error) { vm.startNewRound() }
                             .padding(.top, 6)
                     } else {
-                        // 2×4 Grid — full tap area
                         LazyVGrid(
                             columns: Array(repeating: GridItem(.flexible(), spacing: gridSpacing), count: columnsCount),
                             spacing: gridSpacing
@@ -77,7 +69,6 @@ struct BaseGameView: View {
                         .frame(maxWidth: maxGridWidth)
                         .padding(.top, 6)
 
-                        // Candidate / Result
                         Group {
                             if let p = vm.currentCandidate, !vm.gameOver {
                                 CandidateCard(player: p,
@@ -96,7 +87,6 @@ struct BaseGameView: View {
                         .frame(maxWidth: 360)
                         .padding(.top, 8)
 
-                        // New Game Button — T-yellow with translucent yellow background, dark-yellow text
                         Button {
                             vm.startNewRound()
                         } label: {
@@ -125,24 +115,6 @@ struct BaseGameView: View {
             .background(Theme.bg)
         }
         .ignoresSafeArea(edges: .bottom)
-    }
-}
-
-// MARK: - Helpers
-
-private func format(_ n: Int) -> String {
-    let f = NumberFormatter()
-    f.numberStyle = .decimal
-    return f.string(from: NSNumber(value: n)) ?? "\(n)"
-}
-
-private func colorFor(score: Int, goal: Int) -> Color {
-    // kept for potential future use (not shown under button anymore)
-    let diff = abs(Double(score - goal))
-    switch diff {
-    case 0..<2_000: return .green
-    case 2_000..<10_000: return .orange
-    default: return .red
     }
 }
 
@@ -238,24 +210,15 @@ private struct ResultCard: View {
     let goal: Int
     let success: Bool
     var body: some View {
+        let color = success ? Theme.tYellow : Theme.ctBlue
         VStack(spacing: 6) {
-            if(total >= goal){
-                Text("Round Complete")
-                    .font(.headline)
-                    .foregroundStyle(Theme.tYellow)
-                Text("Total Score: \(format(total))")
-                    .font(.subheadline)
-                    .bold()
-                    .foregroundStyle(Theme.tYellow)
-            }else{
-                Text("Round Complete")
-                    .font(.headline)
-                    .foregroundStyle(Theme.ctBlue)
-                Text("Total Score: \(format(total))")
-                    .font(.subheadline)
-                    .bold()
-                    .foregroundStyle(Theme.ctBlue)
-            }
+            Text("Round Complete")
+                .font(.headline)
+                .foregroundStyle(color)
+            Text("Total Score: \(format(total))")
+                .font(.subheadline)
+                .bold()
+                .foregroundStyle(color)
         }
         .frame(maxWidth: .infinity)
         .padding(10)
