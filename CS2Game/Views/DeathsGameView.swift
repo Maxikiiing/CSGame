@@ -1,24 +1,35 @@
 import SwiftUI
 
+/// Game view where players are assigned to multiplier slots based on their deaths.
 struct DeathsGameView: View {
     // MARK: - Game State
+    /// Players participating in the current round (up to 8).
     @State private var roundPlayers: [Player] = []
+    /// Index of the player currently being placed into a slot.
     @State private var currentIndex: Int = 0
+    /// Array representing chosen multiplier slots; each holds a player or nil if unassigned.
     @State private var assignments: [Player?] = Array(repeating: nil, count: 8)
+    /// Calculated score for the round once all players are placed.
     @State private var score: Int? = nil
+    /// Error message shown when player data fails to load.
     @State private var dataError: String? = nil
 
     // MARK: - Config
+    /// Multipliers applied to each slot when calculating the total deaths.
     let multipliers: [Double] = [1.0, 0.5, 0.5, 0.5, 0.2, 0.2, 0.1, 0.1]
+    /// Target score the player aims to reach.
     let goal: Double = 100_000
 
     // MARK: - Derived
+    /// Indicates whether every slot has a player assigned.
     private var allPlaced: Bool { !assignments.contains(where: { $0 == nil }) }
+    /// Returns the player currently being placed, or nil if all have been placed.
     private var currentPlayer: Player? {
         guard currentIndex < roundPlayers.count else { return nil }
         return roundPlayers[currentIndex]
     }
 
+    /// Computes the running score based on placed players and multipliers.
     private var currentScore: Int {
         var sum: Double = 0
         for i in 0..<assignments.count {
@@ -29,7 +40,9 @@ struct DeathsGameView: View {
         return Int(sum.rounded())
     }
 
+    /// Progress towards the goal as a value between 0 and 1.
     private var progressValue: Double { min(Double(currentScore) / goal, 1.0) }
+    /// Tint color for the progress bar, turning gold when the goal is reached.
     private var progressTint: Color {
         Double(currentScore) >= goal
             ? Color(red: 0.75, green: 0.6, blue: 0.0) // dark yellow / gold
@@ -37,6 +50,7 @@ struct DeathsGameView: View {
     }
 
     // MARK: - Body
+    /// Main view layout containing progress, slots, current player, and controls.
     var body: some View {
         VStack(spacing: 24) {
             // Header / Progress
@@ -46,6 +60,7 @@ struct DeathsGameView: View {
                 Text("Score: \(formatted(currentScore)) / \(formatted(Int(goal)))")
                     .font(.subheadline)
                     .foregroundColor(.secondary)
+                // Visual indicator of progress toward the goal.
                 ProgressView(value: progressValue)
                     .tint(progressTint)
                     .animation(.easeInOut(duration: 0.5), value: progressValue)
@@ -59,6 +74,7 @@ struct DeathsGameView: View {
                 LazyVGrid(columns: Array(repeating: GridItem(.flexible(), spacing: 12), count: 4), spacing: 12) {
                     ForEach(0..<multipliers.count, id: \.self) { index in
                         Button {
+                            // When tapped, place the current player into this slot.
                             placeCurrentPlayer(in: index)
                         } label: {
                             ZStack {
@@ -80,6 +96,7 @@ struct DeathsGameView: View {
                                 }
                             }
                         }
+                        // Disable the slot when already filled or when no player is available.
                         .disabled(assignments[index] != nil || currentPlayer == nil || allPlaced)
                     }
                 }
@@ -113,10 +130,12 @@ struct DeathsGameView: View {
             }
         }
         .padding()
+        // Load a new round when the view appears.
         .onAppear(perform: startNewRound)
     }
 
     // MARK: - Subviews
+    /// Card displaying stats for the player currently being placed.
     private func currentPlayerCard(_ p: Player) -> some View {
         VStack(spacing: 8) {
             Text("Current Player").font(.subheadline).foregroundColor(.secondary)
@@ -140,6 +159,7 @@ struct DeathsGameView: View {
         }
     }
 
+    /// View shown after all players have been placed and the score computed.
     private var resultView: some View {
         VStack(spacing: 10) {
             Text("Round Complete").font(.headline)
@@ -157,6 +177,7 @@ struct DeathsGameView: View {
         .clipShape(RoundedRectangle(cornerRadius: 12))
     }
 
+    /// View displayed when no player data could be loaded.
     private var emptyDataView: some View {
         VStack(spacing: 8) {
             Text("No players available").font(.headline)
@@ -168,6 +189,7 @@ struct DeathsGameView: View {
         .padding()
     }
 
+    /// Error view shown when loading player data fails.
     private func errorView(message: String) -> some View {
         VStack(spacing: 10) {
             Text("Data Error").font(.headline)
@@ -184,6 +206,7 @@ struct DeathsGameView: View {
         .clipShape(RoundedRectangle(cornerRadius: 12))
     }
 
+    /// Small pill-style label showing a statistic title and value.
     private func statPill(_ title: String, _ value: Int) -> some View {
         VStack {
             Text(title).font(.caption2).foregroundColor(.secondary)
@@ -196,6 +219,7 @@ struct DeathsGameView: View {
     }
 
     // MARK: - Actions / Logic
+    /// Starts a new round by loading players and resetting state.
     private func startNewRound() {
         let source = loadPlayers()
         guard !source.isEmpty else {
@@ -213,13 +237,16 @@ struct DeathsGameView: View {
         score = nil
     }
 
+    /// Places the currently selected player into the specified slot.
     private func placeCurrentPlayer(in slot: Int) {
         guard !allPlaced, assignments[slot] == nil, currentIndex < roundPlayers.count else { return }
         assignments[slot] = roundPlayers[currentIndex]
         currentIndex += 1
+        // Once all players are placed, compute the final score.
         if currentIndex == roundPlayers.count { computeScore() }
     }
 
+    /// Calculates the total score based on deaths and multipliers.
     private func computeScore() {
         var sum: Double = 0
         for i in 0..<assignments.count {
@@ -231,12 +258,14 @@ struct DeathsGameView: View {
     }
 
     // MARK: - Helpers
+    /// Formats numbers with thousands separators for display.
     private func formatted(_ n: Int) -> String {
         let f = NumberFormatter()
         f.numberStyle = .decimal
         return f.string(from: NSNumber(value: n)) ?? "\(n)"
     }
 
+    /// Chooses a color based on how close the score is to the goal.
     private func colorFor(score: Int) -> Color {
         let diff = abs(Double(score) - goal)
         switch diff {
