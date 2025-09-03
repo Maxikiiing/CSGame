@@ -15,27 +15,33 @@ struct BaseGameView: View {
             let W = geo.size.width
             let horizPadding: CGFloat = 20
             let gridSpacing: CGFloat = 10
-            let columnsCount = 2 // 2 Spalten, 4 Reihen
-            // Slots sollen etwas kleiner und zentriert sein, nicht volle Breite
-            let maxGridWidth = min(W - 2*horizPadding, 340) // begrenze Gesamtbreite
+            let columnsCount = 2 // 2 columns × 4 rows
+
+            // Center a compact grid (not full width)
+            let maxGridWidth = min(W - 2*horizPadding, 340)
             let colWidth = (maxGridWidth - gridSpacing) / 2
-            let slotHeight = max(50, min(80, colWidth * 0.55))
-            // Candidate-Card etwas kleiner
-            let cardHeight = max(90, min(140, W * 0.35))
+
+            // Compact slots
+            let slotHeight = max(48, min(74, colWidth * 0.52))
+
+            // Slim candidate card
+            let cardHeight = max(76, min(110, W * 0.28))
 
             ScrollView {
                 VStack(alignment: .center, spacing: 14) {
                     // MARK: Header
                     Text(vm.config.title)
                         .font(.title).bold()
+                        .foregroundStyle(Theme.ctBlue)
                         .frame(maxWidth: .infinity, alignment: .center)
 
                     VStack(spacing: 6) {
                         Text("Goal: \(format(vm.config.goal))  •  Score: \(format(vm.runningTotal))")
                             .font(.subheadline)
-                            .foregroundStyle(.secondary)
+                            .foregroundStyle(Theme.ctBlueDim)
+
                         ProgressView(value: vm.progress)
-                            .tint(vm.runningTotal >= vm.config.goal ? Color(red: 0.75, green: 0.6, blue: 0.0) : .blue)
+                            .tint(Theme.ctBlue)
                             .animation(.easeInOut(duration: 0.5), value: vm.progress)
                             .frame(maxWidth: 260)
                     }
@@ -45,50 +51,59 @@ struct BaseGameView: View {
                         ErrorCard(message: error) { vm.startNewRound() }
                             .padding(.top, 6)
                     } else {
-                        // 2×4 Grid kompakter, zentriert
+                        // 2×4 Grid — full tap area
                         LazyVGrid(
                             columns: Array(repeating: GridItem(.flexible(), spacing: gridSpacing), count: columnsCount),
                             spacing: gridSpacing
                         ) {
                             ForEach(vm.slots) { slot in
-                                SlotView(slot: slot, slotHeight: slotHeight)
-                                    .frame(width: colWidth)
-                                    .onTapGesture { vm.placeCandidate(in: slot.id) }
-                                    .disabled(slot.player != nil || vm.currentCandidate == nil || vm.gameOver)
-                                    .animation(.spring(duration: 0.3), value: slot.player?.id)
+                                Button {
+                                    vm.placeCandidate(in: slot.id)
+                                } label: {
+                                    SlotView(slot: slot)
+                                        .frame(width: colWidth, height: slotHeight)
+                                        .contentShape(Rectangle())
+                                }
+                                .buttonStyle(.plain)
+                                .disabled(slot.player != nil || vm.currentCandidate == nil || vm.gameOver)
+                                .animation(.spring(duration: 0.3), value: slot.player?.id)
                             }
                         }
                         .frame(maxWidth: maxGridWidth)
                         .padding(.top, 6)
 
-                        // Candidate / Result kompakter
+                        // Candidate / Result
                         Group {
                             if let p = vm.currentCandidate, !vm.gameOver {
-                                CandidateCard(player: p, stat: vm.config.stat, height: cardHeight)
-                                    .transition(.opacity.combined(with: .scale))
+                                CandidateCard(player: p,
+                                              stat: vm.config.stat,
+                                              height: cardHeight)
+                                .transition(.opacity.combined(with: .scale))
                             } else if !vm.slots.contains(where: { $0.player == nil }) {
                                 ResultCard(total: vm.runningTotal,
                                            goal: vm.config.goal,
                                            success: vm.hasWon)
-                                    .transition(.opacity)
+                                .transition(.opacity)
                             } else {
                                 EmptyHintCard()
                             }
                         }
-                        .frame(maxWidth: 360) // schlanker als ganze Breite
+                        .frame(maxWidth: 360)
                         .padding(.top, 8)
 
-                        // New Game Button kompakter
+                        // New Game Button — outline with CT color
                         VStack(spacing: 8) {
                             Button("New Game") { vm.startNewRound() }
-                                .buttonStyle(.borderedProminent)
-                                .frame(maxWidth: 200) // nicht volle Breite
+                                .buttonStyle(.bordered)
+                                .tint(Theme.ctBlue)
+                                .foregroundStyle(Theme.ctBlue)
+                                .frame(maxWidth: 200)
 
                             if vm.gameOver {
                                 Text("Total: \(format(vm.runningTotal))  •  Goal: \(format(vm.config.goal))")
                                     .font(.footnote)
                                     .bold()
-                                    .foregroundStyle(colorFor(score: vm.runningTotal, goal: vm.config.goal))
+                                    .foregroundStyle(Theme.ctBlue)
                             }
                         }
                         .padding(.top, 6)
@@ -100,7 +115,9 @@ struct BaseGameView: View {
                 .padding(.top, 12)
                 .padding(.bottom, 20)
             }
+            .background(Theme.bg) // <— dark CT background
         }
+        .ignoresSafeArea(edges: .bottom)
     }
 }
 
@@ -113,6 +130,7 @@ private func format(_ n: Int) -> String {
 }
 
 private func colorFor(score: Int, goal: Int) -> Color {
+    // Keep result color informative; text color on cards stays CT blue
     let diff = abs(Double(score - goal))
     switch diff {
     case 0..<2_000: return .green
@@ -123,30 +141,34 @@ private func colorFor(score: Int, goal: Int) -> Color {
 
 // MARK: - Subviews
 
+/// Entire area is tap-target (wrapped by Button in parent).
 private struct SlotView: View {
     let slot: Slot
-    let slotHeight: CGFloat
 
     var body: some View {
         ZStack {
             RoundedRectangle(cornerRadius: 12)
-                .stroke(slot.player == nil ? Color.blue : Color.green, lineWidth: 2)
-                .frame(height: slotHeight)
+                .fill(Theme.cardBG)
+                .overlay(
+                    RoundedRectangle(cornerRadius: 12)
+                        .stroke(slot.player == nil ? Theme.slotStrokeEmpty : Theme.slotStrokeFilled, lineWidth: 2)
+                )
 
             VStack(spacing: 2) {
                 Text("× \(slot.multiplier, specifier: "%.1f")")
                     .font(.caption).bold()
+                    .foregroundStyle(Theme.ctBlue)
 
                 if let p = slot.player {
                     Text(p.name)
                         .font(.caption2)
                         .lineLimit(1)
                         .minimumScaleFactor(0.7)
-                        .foregroundStyle(.primary)
+                        .foregroundStyle(Theme.ctBlueDim)
                 } else {
                     Text("Tap")
                         .font(.caption2)
-                        .foregroundStyle(.secondary)
+                        .foregroundStyle(Theme.ctBlueDim)
                 }
             }
             .padding(.horizontal, 2)
@@ -163,36 +185,41 @@ private struct CandidateCard: View {
         VStack(spacing: 6) {
             Text("Current Player")
                 .font(.footnote)
-                .foregroundStyle(.secondary)
+                .foregroundStyle(Theme.ctBlueDim)
+                .frame(maxWidth: .infinity, alignment: .center)
 
-            VStack(alignment: .leading, spacing: 4) {
+            VStack(spacing: 6) {
                 Text(player.name)
                     .font(.headline)
+                    .bold()
+                    .multilineTextAlignment(.center)
                     .lineLimit(1)
                     .minimumScaleFactor(0.85)
+                    .foregroundStyle(Theme.ctBlue)
 
                 HStack(spacing: 8) {
                     pill("Kills", player.kills)
                     pill("Deaths", player.deaths)
                     pill("Aces", player.acesOrZero)
                 }
+                .frame(maxWidth: .infinity, alignment: .center)
             }
             .padding(10)
             .frame(maxWidth: .infinity)
             .frame(height: height)
-            .background(.thinMaterial)
+            .background(Theme.cardBG)
             .clipShape(RoundedRectangle(cornerRadius: 10))
         }
     }
 
     private func pill(_ title: String, _ value: Int) -> some View {
         VStack(spacing: 0) {
-            Text(title).font(.caption2).foregroundStyle(.secondary)
-            Text(format(value)).font(.caption).bold()
+            Text(title).font(.caption2).foregroundStyle(Theme.ctBlueDim)
+            Text(format(value)).font(.caption).bold().foregroundStyle(Theme.ctBlue)
         }
         .padding(.vertical, 4)
         .padding(.horizontal, 6)
-        .background(Color.white.opacity(0.6))
+        .background(Theme.cardBG)
         .clipShape(RoundedRectangle(cornerRadius: 6))
     }
 }
@@ -203,14 +230,14 @@ private struct ResultCard: View {
     let success: Bool
     var body: some View {
         VStack(spacing: 6) {
-            Text("Round Complete").font(.headline)
+            Text("Round Complete").font(.headline).foregroundStyle(Theme.ctBlue)
             Text("Total Score: \(format(total))")
                 .font(.subheadline).bold()
-                .foregroundStyle(success ? .green : colorFor(score: total, goal: goal))
+                .foregroundStyle(Theme.ctBlue)
         }
         .frame(maxWidth: .infinity)
         .padding(10)
-        .background(.thinMaterial)
+        .background(Theme.cardBG)
         .clipShape(RoundedRectangle(cornerRadius: 10))
     }
 }
@@ -218,14 +245,14 @@ private struct ResultCard: View {
 private struct EmptyHintCard: View {
     var body: some View {
         VStack(spacing: 4) {
-            Text("Ready to place").font(.subheadline)
+            Text("Ready to place").font(.subheadline).foregroundStyle(Theme.ctBlue)
             Text("Tap a slot to place the highlighted player.")
                 .font(.caption)
-                .foregroundStyle(.secondary)
+                .foregroundStyle(Theme.ctBlueDim)
         }
         .frame(maxWidth: .infinity)
         .padding(10)
-        .background(Color.gray.opacity(0.12))
+        .background(Theme.cardBG)
         .clipShape(RoundedRectangle(cornerRadius: 10))
     }
 }
@@ -235,19 +262,21 @@ private struct ErrorCard: View {
     let retry: () -> Void
     var body: some View {
         VStack(spacing: 6) {
-            Text("Data Error").font(.headline)
+            Text("Data Error").font(.headline).foregroundStyle(Theme.ctBlue)
             Text(message)
                 .font(.caption)
-                .foregroundStyle(.secondary)
+                .foregroundStyle(Theme.ctBlueDim)
                 .multilineTextAlignment(.leading)
                 .frame(maxWidth: .infinity, alignment: .leading)
             Button("Retry", action: retry)
-                .buttonStyle(.borderedProminent)
+                .buttonStyle(.bordered)
+                .tint(Theme.ctBlue)
+                .foregroundStyle(Theme.ctBlue)
                 .frame(maxWidth: 120)
         }
         .padding(10)
         .frame(maxWidth: .infinity)
-        .background(Color.gray.opacity(0.12))
+        .background(Theme.cardBG)
         .clipShape(RoundedRectangle(cornerRadius: 10))
     }
 }
