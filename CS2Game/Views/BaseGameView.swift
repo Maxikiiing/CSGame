@@ -13,106 +13,98 @@ struct BaseGameView: View {
     var body: some View {
         GeometryReader { geo in
             let W = geo.size.width
-            let H = geo.size.height
-            let isCompactH = H < 700
-            let isNarrowW  = W < 370
+            let horizPadding: CGFloat = 20
+            let gridSpacing: CGFloat = 10
+            let columnsCount = 2 // 2 Spalten, 4 Reihen
+            // Slots sollen etwas kleiner und zentriert sein, nicht volle Breite
+            let maxGridWidth = min(W - 2*horizPadding, 340) // begrenze Gesamtbreite
+            let colWidth = (maxGridWidth - gridSpacing) / 2
+            let slotHeight = max(50, min(80, colWidth * 0.55))
+            // Candidate-Card etwas kleiner
+            let cardHeight = max(90, min(140, W * 0.35))
 
-            // Dynamische Metriken
-            let headerTopPadding: CGFloat = isCompactH ? 8 : 16
-            let gridSpacing: CGFloat = isCompactH ? 8 : 12
-            let colCount = isNarrowW ? 3 : 4   // auf SE ggf. 3 Spalten, sonst 4
-            let slotHeight: CGFloat = clamp(isCompactH ? 56 : 76, 52, 96)
-            let titleSize: CGFloat = isCompactH ? 24 : 32
-            let subSize: CGFloat = isCompactH ? 12 : 15
-            let buttonControl: ControlSize = isCompactH ? .small : .regular
-            let cardHeight: CGFloat = clamp(H * 0.18, 90, 150) // „CS-Pro“-Karte
-            let footerHeight: CGFloat = isCompactH ? 52 : 60
-
-            VStack(spacing: 0) {
-                // HEADER
-                VStack(spacing: 6) {
+            ScrollView {
+                VStack(alignment: .center, spacing: 14) {
+                    // MARK: Header
                     Text(vm.config.title)
-                        .font(.system(size: titleSize, weight: .bold))
-                    Text("Goal: \(format(vm.config.goal))  •  Score: \(format(vm.runningTotal))")
-                        .font(.system(size: subSize))
-                        .foregroundStyle(.secondary)
-                    ProgressView(value: vm.progress)
-                        .tint(vm.runningTotal >= vm.config.goal ? Color(red: 0.75, green: 0.6, blue: 0.0) : .blue)
-                        .frame(maxWidth: 560)
-                        .animation(.easeInOut(duration: 0.5), value: vm.progress)
-                }
-                .padding(.top, headerTopPadding)
-                .padding(.horizontal, 16)
+                        .font(.title).bold()
+                        .frame(maxWidth: .infinity, alignment: .center)
 
-                // CONTENT
-                if let error = vm.dataError {
-                    ErrorCard(message: error) { vm.startNewRound() }
-                        .padding(16)
-                } else {
-                    // GRID (ohne Scrollen, aber komprimiert)
-                    let columns = Array(repeating: GridItem(.flexible(), spacing: gridSpacing), count: colCount)
-                    LazyVGrid(columns: columns, spacing: gridSpacing) {
-                        ForEach(vm.slots) { slot in
-                            SlotView(slot: slot, slotHeight: slotHeight, subSize: subSize)
-                                .contentShape(Rectangle())
-                                .onTapGesture { vm.placeCandidate(in: slot.id) }
-                                .disabled(slot.player != nil || vm.currentCandidate == nil || vm.gameOver)
-                                .animation(.spring(duration: 0.35), value: slot.player?.id)
+                    VStack(spacing: 6) {
+                        Text("Goal: \(format(vm.config.goal))  •  Score: \(format(vm.runningTotal))")
+                            .font(.subheadline)
+                            .foregroundStyle(.secondary)
+                        ProgressView(value: vm.progress)
+                            .tint(vm.runningTotal >= vm.config.goal ? Color(red: 0.75, green: 0.6, blue: 0.0) : .blue)
+                            .animation(.easeInOut(duration: 0.5), value: vm.progress)
+                            .frame(maxWidth: 260)
+                    }
+
+                    // MARK: Main content
+                    if let error = vm.dataError {
+                        ErrorCard(message: error) { vm.startNewRound() }
+                            .padding(.top, 6)
+                    } else {
+                        // 2×4 Grid kompakter, zentriert
+                        LazyVGrid(
+                            columns: Array(repeating: GridItem(.flexible(), spacing: gridSpacing), count: columnsCount),
+                            spacing: gridSpacing
+                        ) {
+                            ForEach(vm.slots) { slot in
+                                SlotView(slot: slot, slotHeight: slotHeight)
+                                    .frame(width: colWidth)
+                                    .onTapGesture { vm.placeCandidate(in: slot.id) }
+                                    .disabled(slot.player != nil || vm.currentCandidate == nil || vm.gameOver)
+                                    .animation(.spring(duration: 0.3), value: slot.player?.id)
+                            }
                         }
-                    }
-                    .padding(.horizontal, 16)
-                    .padding(.top, 12)
+                        .frame(maxWidth: maxGridWidth)
+                        .padding(.top, 6)
 
-                    // CANDIDATE / RESULT
-                    Group {
-                        if let p = vm.currentCandidate, !vm.gameOver {
-                            CandidateCard(player: p,
-                                          stat: vm.config.stat,
-                                          height: cardHeight,
-                                          subSize: subSize)
-                                .transition(.opacity.combined(with: .scale))
-                        } else if !vm.slots.contains(where: { $0.player == nil }) {
-                            ResultCard(total: vm.runningTotal,
-                                       goal: vm.config.goal,
-                                       success: vm.hasWon)
-                                .transition(.opacity)
-                        } else {
-                            EmptyHintCard()
+                        // Candidate / Result kompakter
+                        Group {
+                            if let p = vm.currentCandidate, !vm.gameOver {
+                                CandidateCard(player: p, stat: vm.config.stat, height: cardHeight)
+                                    .transition(.opacity.combined(with: .scale))
+                            } else if !vm.slots.contains(where: { $0.player == nil }) {
+                                ResultCard(total: vm.runningTotal,
+                                           goal: vm.config.goal,
+                                           success: vm.hasWon)
+                                    .transition(.opacity)
+                            } else {
+                                EmptyHintCard()
+                            }
                         }
+                        .frame(maxWidth: 360) // schlanker als ganze Breite
+                        .padding(.top, 8)
+
+                        // New Game Button kompakter
+                        VStack(spacing: 8) {
+                            Button("New Game") { vm.startNewRound() }
+                                .buttonStyle(.borderedProminent)
+                                .frame(maxWidth: 200) // nicht volle Breite
+
+                            if vm.gameOver {
+                                Text("Total: \(format(vm.runningTotal))  •  Goal: \(format(vm.config.goal))")
+                                    .font(.footnote)
+                                    .bold()
+                                    .foregroundStyle(colorFor(score: vm.runningTotal, goal: vm.config.goal))
+                            }
+                        }
+                        .padding(.top, 6)
                     }
-                    .padding(.horizontal, 16)
-                    .padding(.top, 12)
+
+                    Spacer(minLength: 8)
                 }
-
-                Spacer(minLength: 8)
-
-                // FOOTER – fix hinterlegt, skalierte Buttons
-                HStack {
-                    Button("New Game") { vm.startNewRound() }
-                        .controlSize(buttonControl)
-                        .buttonStyle(.borderedProminent)
-
-                    if vm.gameOver {
-                        Text("Total: \(format(vm.runningTotal))  •  Goal: \(format(vm.config.goal))")
-                            .font(.system(size: subSize, weight: .semibold))
-                            .foregroundStyle(colorFor(score: vm.runningTotal, goal: vm.config.goal))
-                            .padding(.leading, 8)
-                            .lineLimit(1)
-                            .minimumScaleFactor(0.8)
-                    }
-                }
-                .frame(height: footerHeight)
-                .padding(.horizontal, 16)
-                .background(.ultraThinMaterial)
+                .frame(maxWidth: .infinity)
+                .padding(.top, 12)
+                .padding(.bottom, 20)
             }
-            .ignoresSafeArea(edges: .bottom) // Material-Bar darf in der Safe Area sitzen
         }
     }
 }
 
-// MARK: - Building Blocks (angepasst für variable Größen)
-
-private func clamp(_ v: CGFloat, _ lo: CGFloat, _ hi: CGFloat) -> CGFloat { max(lo, min(v, hi)) }
+// MARK: - Helpers
 
 private func format(_ n: Int) -> String {
     let f = NumberFormatter()
@@ -129,33 +121,35 @@ private func colorFor(score: Int, goal: Int) -> Color {
     }
 }
 
+// MARK: - Subviews
+
 private struct SlotView: View {
     let slot: Slot
     let slotHeight: CGFloat
-    let subSize: CGFloat
 
     var body: some View {
         ZStack {
-            RoundedRectangle(cornerRadius: 14)
-                .stroke(slot.player == nil ? Color.blue : Color.green,
-                        style: StrokeStyle(lineWidth: 2, dash: [6,6]))
+            RoundedRectangle(cornerRadius: 12)
+                .stroke(slot.player == nil ? Color.blue : Color.green, lineWidth: 2)
                 .frame(height: slotHeight)
 
-            VStack(spacing: 4) {
+            VStack(spacing: 2) {
                 Text("× \(slot.multiplier, specifier: "%.1f")")
-                    .font(.system(size: subSize, weight: .semibold))
+                    .font(.caption).bold()
+
                 if let p = slot.player {
                     Text(p.name)
-                        .font(.system(size: subSize - 1))
+                        .font(.caption2)
                         .lineLimit(1)
                         .minimumScaleFactor(0.7)
+                        .foregroundStyle(.primary)
                 } else {
-                    Text("Tap to place")
-                        .font(.system(size: subSize - 2))
+                    Text("Tap")
+                        .font(.caption2)
                         .foregroundStyle(.secondary)
                 }
             }
-            .padding(.horizontal, 6)
+            .padding(.horizontal, 2)
         }
     }
 }
@@ -164,48 +158,42 @@ private struct CandidateCard: View {
     let player: Player
     let stat: GameStatKey
     let height: CGFloat
-    let subSize: CGFloat
 
     var body: some View {
-        VStack(spacing: 8) {
+        VStack(spacing: 6) {
             Text("Current Player")
-                .font(.system(size: subSize - 1))
+                .font(.footnote)
                 .foregroundStyle(.secondary)
-            HStack(spacing: 12) {
-                VStack(alignment: .leading, spacing: 6) {
-                    Text(player.name)
-                        .font(.system(size: subSize + 6, weight: .bold))
-                        .lineLimit(1)
-                        .minimumScaleFactor(0.8)
-                    HStack(spacing: 12) {
-                        pill("Kills", player.kills, subSize)
-                        pill("Deaths", player.deaths, subSize)
-                        pill("Aces", player.acesOrZero, subSize)
-                    }
+
+            VStack(alignment: .leading, spacing: 4) {
+                Text(player.name)
+                    .font(.headline)
+                    .lineLimit(1)
+                    .minimumScaleFactor(0.85)
+
+                HStack(spacing: 8) {
+                    pill("Kills", player.kills)
+                    pill("Deaths", player.deaths)
+                    pill("Aces", player.acesOrZero)
                 }
-                Spacer(minLength: 0)
             }
-            .padding()
+            .padding(10)
             .frame(maxWidth: .infinity)
             .frame(height: height)
             .background(.thinMaterial)
-            .clipShape(RoundedRectangle(cornerRadius: 12))
-
-            Text("Pick a multiplier slot above.")
-                .font(.system(size: subSize - 2))
-                .foregroundStyle(.secondary)
+            .clipShape(RoundedRectangle(cornerRadius: 10))
         }
     }
 
-    private func pill(_ title: String, _ value: Int, _ subSize: CGFloat) -> some View {
-        VStack(spacing: 2) {
-            Text(title).font(.system(size: subSize - 3)).foregroundStyle(.secondary)
-            Text(format(value)).font(.system(size: subSize - 1, weight: .semibold))
+    private func pill(_ title: String, _ value: Int) -> some View {
+        VStack(spacing: 0) {
+            Text(title).font(.caption2).foregroundStyle(.secondary)
+            Text(format(value)).font(.caption).bold()
         }
-        .padding(.vertical, 6)
-        .padding(.horizontal, 8)
+        .padding(.vertical, 4)
+        .padding(.horizontal, 6)
         .background(Color.white.opacity(0.6))
-        .clipShape(RoundedRectangle(cornerRadius: 8))
+        .clipShape(RoundedRectangle(cornerRadius: 6))
     }
 }
 
@@ -214,31 +202,31 @@ private struct ResultCard: View {
     let goal: Int
     let success: Bool
     var body: some View {
-        VStack(spacing: 10) {
+        VStack(spacing: 6) {
             Text("Round Complete").font(.headline)
             Text("Total Score: \(format(total))")
-                .font(.title3).bold()
+                .font(.subheadline).bold()
                 .foregroundStyle(success ? .green : colorFor(score: total, goal: goal))
         }
         .frame(maxWidth: .infinity)
-        .padding()
+        .padding(10)
         .background(.thinMaterial)
-        .clipShape(RoundedRectangle(cornerRadius: 12))
+        .clipShape(RoundedRectangle(cornerRadius: 10))
     }
 }
 
 private struct EmptyHintCard: View {
     var body: some View {
-        VStack(spacing: 6) {
-            Text("Ready to place").font(.headline)
+        VStack(spacing: 4) {
+            Text("Ready to place").font(.subheadline)
             Text("Tap a slot to place the highlighted player.")
                 .font(.caption)
                 .foregroundStyle(.secondary)
         }
         .frame(maxWidth: .infinity)
-        .padding()
+        .padding(10)
         .background(Color.gray.opacity(0.12))
-        .clipShape(RoundedRectangle(cornerRadius: 12))
+        .clipShape(RoundedRectangle(cornerRadius: 10))
     }
 }
 
@@ -246,18 +234,20 @@ private struct ErrorCard: View {
     let message: String
     let retry: () -> Void
     var body: some View {
-        VStack(spacing: 10) {
+        VStack(spacing: 6) {
             Text("Data Error").font(.headline)
             Text(message)
                 .font(.caption)
                 .foregroundStyle(.secondary)
-                .multilineTextAlignment(.center)
+                .multilineTextAlignment(.leading)
+                .frame(maxWidth: .infinity, alignment: .leading)
             Button("Retry", action: retry)
                 .buttonStyle(.borderedProminent)
+                .frame(maxWidth: 120)
         }
-        .padding()
+        .padding(10)
         .frame(maxWidth: .infinity)
         .background(Color.gray.opacity(0.12))
-        .clipShape(RoundedRectangle(cornerRadius: 12))
+        .clipShape(RoundedRectangle(cornerRadius: 10))
     }
 }

@@ -12,9 +12,10 @@ struct KillsGameView: View {
         let cfg = GameConfig(
             title: "100 000 Kills",
             goal: 100_000,
-            multipliers: [1.0, 0.5, 0.5, 0.2, 0.2, 0.1, 0.1, 0.1],
+            multipliers: [1.0, 0.5, 0.5, 0.2, 0.2, 0.1, 0.1, 0.1], // 4×2 Grid
             stat: .kills
         )
         BaseGameView(vm: GameViewModel(config: cfg))
     }
 }
+
