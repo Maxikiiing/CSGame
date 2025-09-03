@@ -27,6 +27,11 @@ struct BaseGameView: View {
             // Slim candidate card
             let cardHeight = max(76, min(110, W * 0.28))
 
+            // Colors that flip to T-theme once goal is achieved
+            let achieved = vm.runningTotal >= vm.config.goal
+            let barColor = achieved ? Theme.tYellow : Theme.ctBlue
+            let barTextColor = achieved ? Theme.tYellow : Theme.ctBlueDim
+
             ScrollView {
                 VStack(alignment: .center, spacing: 14) {
                     // MARK: Header
@@ -38,10 +43,10 @@ struct BaseGameView: View {
                     VStack(spacing: 6) {
                         Text("Goal: \(format(vm.config.goal))  •  Score: \(format(vm.runningTotal))")
                             .font(.subheadline)
-                            .foregroundStyle(Theme.ctBlueDim)
+                            .foregroundStyle(barTextColor)
 
                         ProgressView(value: vm.progress)
-                            .tint(Theme.ctBlue)
+                            .tint(barColor)
                             .animation(.easeInOut(duration: 0.5), value: vm.progress)
                             .frame(maxWidth: 260)
                     }
@@ -91,21 +96,23 @@ struct BaseGameView: View {
                         .frame(maxWidth: 360)
                         .padding(.top, 8)
 
-                        // New Game Button — outline with CT color
-                        VStack(spacing: 8) {
-                            Button("New Game") { vm.startNewRound() }
-                                .buttonStyle(.bordered)
-                                .tint(Theme.ctBlue)
-                                .foregroundStyle(Theme.ctBlue)
-                                .frame(maxWidth: 200)
-
-                            if vm.gameOver {
-                                Text("Total: \(format(vm.runningTotal))  •  Goal: \(format(vm.config.goal))")
-                                    .font(.footnote)
-                                    .bold()
-                                    .foregroundStyle(Theme.ctBlue)
-                            }
+                        // New Game Button — T-yellow with translucent yellow background, dark-yellow text
+                        Button {
+                            vm.startNewRound()
+                        } label: {
+                            Text("New Game")
+                                .font(.headline)
+                                .foregroundStyle(Theme.tYellow)
+                                .frame(maxWidth: 220)
+                                .padding(.vertical, 10)
+                                .background(Theme.tYellowBG)
+                                .overlay(
+                                    RoundedRectangle(cornerRadius: 10)
+                                        .stroke(Theme.tYellowDim, lineWidth: 1)
+                                )
+                                .clipShape(RoundedRectangle(cornerRadius: 10))
                         }
+                        .buttonStyle(.plain)
                         .padding(.top, 6)
                     }
 
@@ -115,7 +122,7 @@ struct BaseGameView: View {
                 .padding(.top, 12)
                 .padding(.bottom, 20)
             }
-            .background(Theme.bg) // <— dark CT background
+            .background(Theme.bg)
         }
         .ignoresSafeArea(edges: .bottom)
     }
@@ -130,7 +137,7 @@ private func format(_ n: Int) -> String {
 }
 
 private func colorFor(score: Int, goal: Int) -> Color {
-    // Keep result color informative; text color on cards stays CT blue
+    // kept for potential future use (not shown under button anymore)
     let diff = abs(Double(score - goal))
     switch diff {
     case 0..<2_000: return .green
@@ -146,29 +153,31 @@ private struct SlotView: View {
     let slot: Slot
 
     var body: some View {
+        let isFilled = (slot.player != nil)
+
         ZStack {
             RoundedRectangle(cornerRadius: 12)
                 .fill(Theme.cardBG)
                 .overlay(
                     RoundedRectangle(cornerRadius: 12)
-                        .stroke(slot.player == nil ? Theme.slotStrokeEmpty : Theme.slotStrokeFilled, lineWidth: 2)
+                        .stroke(isFilled ? Theme.slotStrokeFilled : Theme.slotStrokeEmpty, lineWidth: 2)
                 )
 
             VStack(spacing: 2) {
                 Text("× \(slot.multiplier, specifier: "%.1f")")
                     .font(.caption).bold()
-                    .foregroundStyle(Theme.ctBlue)
+                    .foregroundStyle(isFilled ? Theme.ctBlue : Theme.tYellow)
 
                 if let p = slot.player {
                     Text(p.name)
                         .font(.caption2)
                         .lineLimit(1)
                         .minimumScaleFactor(0.7)
-                        .foregroundStyle(Theme.ctBlueDim)
+                        .foregroundStyle(Theme.ctBlue)
                 } else {
                     Text("Tap")
                         .font(.caption2)
-                        .foregroundStyle(Theme.ctBlueDim)
+                        .foregroundStyle(Theme.tYellowDim)
                 }
             }
             .padding(.horizontal, 2)
@@ -230,10 +239,23 @@ private struct ResultCard: View {
     let success: Bool
     var body: some View {
         VStack(spacing: 6) {
-            Text("Round Complete").font(.headline).foregroundStyle(Theme.ctBlue)
-            Text("Total Score: \(format(total))")
-                .font(.subheadline).bold()
-                .foregroundStyle(Theme.ctBlue)
+            if(total >= goal){
+                Text("Round Complete")
+                    .font(.headline)
+                    .foregroundStyle(Theme.tYellow)
+                Text("Total Score: \(format(total))")
+                    .font(.subheadline)
+                    .bold()
+                    .foregroundStyle(Theme.tYellow)
+            }else{
+                Text("Round Complete")
+                    .font(.headline)
+                    .foregroundStyle(Theme.ctBlue)
+                Text("Total Score: \(format(total))")
+                    .font(.subheadline)
+                    .bold()
+                    .foregroundStyle(Theme.ctBlue)
+            }
         }
         .frame(maxWidth: .infinity)
         .padding(10)
@@ -269,10 +291,12 @@ private struct ErrorCard: View {
                 .multilineTextAlignment(.leading)
                 .frame(maxWidth: .infinity, alignment: .leading)
             Button("Retry", action: retry)
-                .buttonStyle(.bordered)
-                .tint(Theme.ctBlue)
+                .buttonStyle(.plain)
                 .foregroundStyle(Theme.ctBlue)
-                .frame(maxWidth: 120)
+                .padding(.vertical, 8)
+                .padding(.horizontal, 12)
+                .background(Theme.cardBG)
+                .clipShape(RoundedRectangle(cornerRadius: 8))
         }
         .padding(10)
         .frame(maxWidth: .infinity)
