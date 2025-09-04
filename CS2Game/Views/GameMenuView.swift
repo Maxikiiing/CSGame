@@ -4,12 +4,12 @@
 //
 //  Created by Maximilian Kunzmann on 01.09.25.
 //
-
 import SwiftUI
 
 /// Main menu that lets the user choose between different game modes.
 struct GameMenuView: View {
     @State private var showRemoteWarning: Bool = false
+    @State private var canNavigate: Bool = false
 
     var body: some View {
         NavigationStack {
@@ -31,6 +31,16 @@ struct GameMenuView: View {
                         .transition(.opacity)
                 }
 
+                // Loading indicator while preparing cache on first launch
+                if !canNavigate {
+                    HStack(spacing: 8) {
+                        ProgressView()
+                        Text("Loading players…")
+                            .font(.caption)
+                            .foregroundStyle(Theme.ctBlueDim)
+                    }
+                }
+
                 // Menu options
                 VStack(spacing: 12) {
                     NavigationLink {
@@ -40,6 +50,7 @@ struct GameMenuView: View {
                     } label: {
                         MenuCard(title: "100 000 Kills", subtitle: "Place players to hit the goal", systemImage: "target")
                     }
+                    .disabled(!canNavigate)
 
                     NavigationLink {
                         DeathsGameView()
@@ -48,6 +59,7 @@ struct GameMenuView: View {
                     } label: {
                         MenuCard(title: "100 000 Deaths", subtitle: "Place players to hit the goal", systemImage: "xmark.octagon")
                     }
+                    .disabled(!canNavigate)
 
                     NavigationLink {
                         AcesGameView()
@@ -56,8 +68,10 @@ struct GameMenuView: View {
                     } label: {
                         MenuCard(title: "10 000 Aces", subtitle: "Place players to hit the goal", systemImage: "sparkles")
                     }
+                    .disabled(!canNavigate)
                 }
                 .padding(.top, 8)
+                .opacity(canNavigate ? 1 : 0.7)
 
                 Spacer()
             }
@@ -69,6 +83,7 @@ struct GameMenuView: View {
             // Initial status on appear
             .onAppear {
                 showRemoteWarning = (DataLoader.shared.lastRemoteStatus == .failed)
+                canNavigate = DataLoader.shared.hasCache
             }
             // React to notifications
             .onReceive(NotificationCenter.default.publisher(for: .playersRemoteFailed)) { _ in
@@ -76,6 +91,9 @@ struct GameMenuView: View {
             }
             .onReceive(NotificationCenter.default.publisher(for: .playersRemoteLoaded)) { _ in
                 withAnimation { showRemoteWarning = false }
+            }
+            .onReceive(NotificationCenter.default.publisher(for: .playersCacheReady)) { _ in
+                withAnimation { canNavigate = true }
             }
         }
     }

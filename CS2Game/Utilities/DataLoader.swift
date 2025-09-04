@@ -12,12 +12,14 @@ extension Notification.Name {
     static let playersRemoteLoaded = Notification.Name("playersRemoteLoaded")
     /// Remote-Players fehlgeschlagen (Bundle/Fallback verwendet)
     static let playersRemoteFailed = Notification.Name("playersRemoteFailed")
+    /// Cache (egal ob remote oder bundle) ist bereit
+    static let playersCacheReady = Notification.Name("playersCacheReady")
 }
 
 /// Lädt Spielerdaten remote (GitHub Pages) und hält einen In-Memory-Cache.
-/// - blockiert NICHT die Main-Thread.
+/// - NICHT blockierend.
 /// - Fallback auf Bundle-JSON, falls remote fehlschlägt.
-/// - sendet Notifications über den Remote-Ladezustand.
+/// - Sendet Notifications über Remote-Status & Cache-Bereitschaft.
 final class DataLoader {
     static let shared = DataLoader()
 
@@ -36,6 +38,9 @@ final class DataLoader {
     /// Letzter Remote-Status (für initiale Anzeige)
     private(set) var lastRemoteStatus: RemoteStatus = .unknown
 
+    /// Ob der Cache (remote ODER bundle) bereit ist
+    var hasCache: Bool { memoryCache != nil }
+
     private init() {}
 
     // MARK: - Öffentliche API
@@ -43,37 +48,35 @@ final class DataLoader {
     /// Asynchroner Preload – beim App-Start aufrufen.
     /// Holt remote (oder nutzt Bundle als Fallback) und befüllt den In-Memory-Cache.
     func preload() async {
-        // Versuche: remote laden
+        // 1) Versuche: remote laden
         if let remote = try? await fetchRemote() {
             self.memoryCache = remote
             await postRemoteSuccess()
+            await postCacheReady()
             return
         }
 
-        // Wenn remote fehlschlägt und Cache noch leer ist: Bundle nutzen
-        if self.memoryCache == nil, let bundled = loadFromBundle() {
+        // 2) Remote fehlgeschlagen → Bundle asynchron laden/decoden
+        if let bundled = await loadFromBundleAsync() {
             self.memoryCache = bundled
+            await postRemoteFailed()
+            await postCacheReady()
+            return
         }
+
+        // 3) Gar nichts verfügbar (sehr unwahrscheinlich)
         await postRemoteFailed()
     }
 
     /// Synchrone Abfrage für ViewModels:
-    /// - Gibt sofort den Memory-Cache zurück, wenn vorhanden.
-    /// - Sonst Bundle (und stößt im Hintergrund einen Preload an).
-    /// - Kein Blockieren der UI.
+    /// - Gibt SOFORT den Memory-Cache zurück, wenn vorhanden.
+    /// - Führt KEIN synchrones Decoding auf dem Main-Thread mehr aus.
+    /// - Wenn noch kein Cache da ist, triggert Preload im Hintergrund und gibt [] zurück.
     func loadPlayers() -> [Player] {
         if let cached = memoryCache {
             return cached.shuffled()
         }
-
-        if let bundled = loadFromBundle() {
-            // Bundle-Ergebnis direkt nutzen und parallel Remote-Preload anschieben
-            self.memoryCache = bundled
-            Task { await self.preload() }
-            return bundled.shuffled()
-        }
-
-        // Nichts lokal vorhanden – Remote asynchron anstoßen
+        // Noch kein Cache? Preload im Hintergrund starten, synchron nichts blockieren
         Task { await self.preload() }
         return []
     }
@@ -96,22 +99,24 @@ final class DataLoader {
         return players
     }
 
-    // MARK: - Bundle Fallback
+    // MARK: - Bundle Fallback (asynchron)
 
-    private func loadFromBundle() -> [Player]? {
-        guard let url = Bundle.main.url(forResource: "players_real_data", withExtension: "json") else {
-            print("❌ DataLoader: players_real_data.json not found in bundle.")
-            return nil
-        }
-        do {
-            let data = try Data(contentsOf: url)
-            let players = try JSONDecoder().decode([Player].self, from: data)
-            print("✅ DataLoader: loaded \(players.count) players from bundle.")
-            return players
-        } catch {
-            print("❌ DataLoader: bundle decode error:", error)
-            return nil
-        }
+    private func loadFromBundleAsync() async -> [Player]? {
+        await Task.detached(priority: .utility) { () -> [Player]? in
+            guard let url = Bundle.main.url(forResource: "players_real_data", withExtension: "json") else {
+                print("❌ DataLoader: players_real_data.json not found in bundle.")
+                return nil
+            }
+            do {
+                let data = try Data(contentsOf: url)
+                let players = try JSONDecoder().decode([Player].self, from: data)
+                print("✅ DataLoader: loaded \(players.count) players from bundle (async).")
+                return players
+            } catch {
+                print("❌ DataLoader: bundle decode error:", error)
+                return nil
+            }
+        }.value
     }
 
     // MARK: - Notifications
@@ -124,10 +129,14 @@ final class DataLoader {
 
     @MainActor
     private func postRemoteFailed() {
-        // Nur setzen, wenn wir nicht bereits success hatten
         if lastRemoteStatus != .success {
             lastRemoteStatus = .failed
         }
         NotificationCenter.default.post(name: .playersRemoteFailed, object: nil)
+    }
+
+    @MainActor
+    private func postCacheReady() {
+        NotificationCenter.default.post(name: .playersCacheReady, object: nil)
     }
 }

@@ -8,7 +8,7 @@
 import SwiftUI
 import Combine
 
-// Welche Kennzahl wird gewertet?
+// Which attribute is scored?
 enum GameStatKey: Equatable {
     case kills
     case deaths
@@ -26,7 +26,7 @@ enum GameStatKey: Equatable {
 struct GameConfig: Equatable {
     let title: String
     let goal: Int
-    let multipliers: [Double] // 8 Stück (2×4)
+    let multipliers: [Double] // 8 values (2×4)
     let stat: GameStatKey
 }
 
@@ -34,6 +34,13 @@ struct Slot: Identifiable, Equatable {
     let id = UUID()
     let multiplier: Double
     var player: Player? = nil
+}
+
+/// Result of trying to place the current candidate.
+enum PlacementOutcome {
+    case placed        // placed, still players left to place
+    case completed     // placed and round just completed
+    case ignored       // could not place (slot already filled / no candidate)
 }
 
 final class GameViewModel: ObservableObject {
@@ -50,22 +57,11 @@ final class GameViewModel: ObservableObject {
     init(config: GameConfig) {
         self.config = config
         self.slots = config.multipliers.map { Slot(multiplier: $0) }
-
-        // Optional: auf Hintergrund-Updates reagieren (falls du später Notifications sendest)
-        // NotificationCenter.default.publisher(for: RemoteConfig.playersUpdatedNotification)
-        //     .receive(on: DispatchQueue.main)
-        //     .sink { [weak self] _ in
-        //         print("ℹ️ GameViewModel: players updated in background.")
-        //     }
-        //     .store(in: &cancellables)
-
         startNewRound()
     }
 
     func startNewRound() {
-        // ⬇️ NEU: Aufruf über den Singleton
         let source = DataLoader.shared.loadPlayers()
-
         guard !source.isEmpty else {
             dataError = "No players loaded. Check your remote URL / bundle JSON."
             allPlayers = []; availablePlayers = []
@@ -91,11 +87,13 @@ final class GameViewModel: ObservableObject {
         currentCandidate = availablePlayers.randomElement()
     }
 
-    func placeCandidate(in slotID: UUID) {
+    /// Places the current candidate into the given slot.
+    /// Returns a `PlacementOutcome` so the view can trigger the right haptic.
+    func placeCandidate(in slotID: UUID) -> PlacementOutcome {
         guard let candidate = currentCandidate,
               let sIdx = slots.firstIndex(where: { $0.id == slotID && $0.player == nil }),
               let poolIdx = availablePlayers.firstIndex(where: { $0.id == candidate.id })
-        else { return }
+        else { return .ignored }
 
         slots[sIdx].player = candidate
         availablePlayers.remove(at: poolIdx)
@@ -103,8 +101,10 @@ final class GameViewModel: ObservableObject {
 
         if slots.allSatisfy({ $0.player != nil }) {
             gameOver = true
+            return .completed
         } else {
             drawNextCandidate()
+            return .placed
         }
     }
 

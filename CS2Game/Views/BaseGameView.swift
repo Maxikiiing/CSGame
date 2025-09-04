@@ -12,16 +12,29 @@ struct BaseGameView: View {
 
     var body: some View {
         GeometryReader { geo in
-            let W = geo.size.width
+            // ---- Safe sizing (clamps for 0 / negative / non-finite) ----
+            let safeW: CGFloat = (geo.size.width.isFinite && geo.size.width > 0)
+                ? geo.size.width
+                : UIScreen.main.bounds.width
+
             let horizPadding: CGFloat = 20
             let gridSpacing: CGFloat = 10
             let columnsCount = 2
 
-            let maxGridWidth = min(W - 2*horizPadding, 340)
-            let colWidth = (maxGridWidth - gridSpacing) / 2
+            let available = max(0, safeW - 2 * horizPadding)
+            // Max grid width, clamped >= 0
+            let maxGridWidth = min(available, 340)
 
+            // Column width: handle tiny or zero grid width robustly
+            let rawCol = (maxGridWidth - gridSpacing) / 2
+            let colWidth = max(80, rawCol.isFinite ? rawCol : 120)
+
+            // Slot height derived from colWidth, but clamped
             let slotHeight = max(48, min(74, colWidth * 0.52))
-            let cardHeight = max(76, min(110, W * 0.28))
+
+            // Candidate card height derived from safeW, clamped
+            let rawCard = safeW * 0.28
+            let cardHeight = max(76, min(110, rawCard.isFinite ? rawCard : 100))
 
             let achieved = vm.runningTotal >= vm.config.goal
             let barColor = achieved ? Theme.tYellow : Theme.ctBlue
@@ -49,16 +62,25 @@ struct BaseGameView: View {
                         ErrorCard(message: error) { vm.startNewRound() }
                             .padding(.top, 6)
                     } else {
+                        // 2×4 grid
                         LazyVGrid(
                             columns: Array(repeating: GridItem(.flexible(), spacing: gridSpacing), count: columnsCount),
                             spacing: gridSpacing
                         ) {
                             ForEach(vm.slots) { slot in
                                 Button {
-                                    vm.placeCandidate(in: slot.id)
+                                    let outcome = vm.placeCandidate(in: slot.id)
+                                    switch outcome {
+                                    case .placed:    Haptics.tap()
+                                    case .completed: Haptics.success()
+                                    case .ignored:   break
+                                    }
                                 } label: {
                                     SlotView(slot: slot)
-                                        .frame(width: colWidth, height: slotHeight)
+                                        .frame(
+                                            width: colWidth > 0 ? colWidth : 120,
+                                            height: slotHeight > 0 ? slotHeight : 60
+                                        )
                                         .contentShape(Rectangle())
                                 }
                                 .buttonStyle(.plain)
@@ -66,14 +88,15 @@ struct BaseGameView: View {
                                 .animation(.spring(duration: 0.3), value: slot.player?.id)
                             }
                         }
-                        .frame(maxWidth: maxGridWidth)
+                        // Wenn maxGridWidth sehr klein (0) wäre, nutze breite Fallbacks
+                        .frame(maxWidth: (maxGridWidth > 0 ? maxGridWidth : .infinity))
                         .padding(.top, 6)
 
                         Group {
                             if let p = vm.currentCandidate, !vm.gameOver {
                                 CandidateCard(player: p,
                                               stat: vm.config.stat,
-                                              height: cardHeight)
+                                              height: cardHeight > 0 ? cardHeight : 90)
                                 .transition(.opacity.combined(with: .scale))
                             } else if !vm.slots.contains(where: { $0.player == nil }) {
                                 ResultCard(total: vm.runningTotal,
