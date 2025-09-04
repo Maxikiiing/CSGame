@@ -69,6 +69,16 @@ struct GameMenuView: View {
                         MenuCard(title: "10 000 Aces", subtitle: "Place players to hit the goal", systemImage: "sparkles")
                     }
                     .disabled(!canNavigate)
+
+                    // Bingo Untermenü
+                    NavigationLink {
+                        BingoMenuView()
+                            .toolbarBackground(Theme.bg, for: .navigationBar)
+                            .toolbarBackground(.visible, for: .navigationBar)
+                    } label: {
+                        MenuCard(title: "Bingo", subtitle: "Pick a challenge", systemImage: "square.grid.3x3")
+                    }
+                    .disabled(!canNavigate)
                 }
                 .padding(.top, 8)
                 .opacity(canNavigate ? 1 : 0.7)
@@ -84,10 +94,6 @@ struct GameMenuView: View {
             .onAppear {
                 showRemoteWarning = (DataLoader.shared.lastRemoteStatus == .failed)
                 canNavigate = DataLoader.shared.hasCache
-            }
-            // Start preload here to avoid any risk of first-frame blocking at app entry.
-            .task {
-                await DataLoader.shared.preload()
             }
             // React to notifications
             .onReceive(NotificationCenter.default.publisher(for: .playersRemoteFailed)) { _ in

@@ -8,13 +8,12 @@
 // CS2GameApp.swift (or your app's main file)
 import SwiftUI
 
-/// Entry point of the application. The `@main` attribute tells SwiftUI where the app starts.
+/// Entry point of the application.
 @main
 struct CS2GameApp: App {
     var body: some Scene {
         WindowGroup {
-            // The initial view presented to the user is the game menu.
-            GameMenuView()
+            AppRootView()
         }
     }
 }

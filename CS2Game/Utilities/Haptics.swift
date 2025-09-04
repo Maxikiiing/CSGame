@@ -15,14 +15,14 @@ enum Haptics {
         gen.impactOccurred(intensity: 1.0)
     }
 
-    /// Stronger tap (falls du an anderer Stelle brauchst).
+    /// Stärkerer Tap (falls du an anderer Stelle brauchst).
     static func tapStrong() {
         let gen = UIImpactFeedbackGenerator(style: .heavy)
         gen.prepare()
         gen.impactOccurred(intensity: 1.0)
     }
 
-    /// Success: Kombination aus success notification + heavy impact.
+    /// Erfolg: Kombination aus success notification + heavy impact.
     static func success() {
         let notif = UINotificationFeedbackGenerator()
         notif.prepare()
@@ -32,5 +32,15 @@ enum Haptics {
         heavy.prepare()
         heavy.impactOccurred(intensity: 1.0)
     }
-}
 
+    /// Fehler/Reject: deutliches Feedback (error notification + heavy impact).
+    static func error() {
+        let notif = UINotificationFeedbackGenerator()
+        notif.prepare()
+        notif.notificationOccurred(.error)
+
+        let heavy = UIImpactFeedbackGenerator(style: .heavy)
+        heavy.prepare()
+        heavy.impactOccurred(intensity: 1.0)
+    }
+}
