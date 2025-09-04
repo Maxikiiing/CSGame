@@ -7,9 +7,17 @@
 
 import Foundation
 
+extension Notification.Name {
+    /// Remote-Players erfolgreich geladen
+    static let playersRemoteLoaded = Notification.Name("playersRemoteLoaded")
+    /// Remote-Players fehlgeschlagen (Bundle/Fallback verwendet)
+    static let playersRemoteFailed = Notification.Name("playersRemoteFailed")
+}
+
 /// Lädt Spielerdaten remote (GitHub Pages) und hält einen In-Memory-Cache.
 /// - blockiert NICHT die Main-Thread.
-/// - Fallback auf Bundle-JSON, falls remote noch nicht da/fehlschlägt.
+/// - Fallback auf Bundle-JSON, falls remote fehlschlägt.
+/// - sendet Notifications über den Remote-Ladezustand.
 final class DataLoader {
     static let shared = DataLoader()
 
@@ -18,6 +26,15 @@ final class DataLoader {
 
     /// In-Memory-Cache (wird beim App-Start / Preload gefüllt)
     private var memoryCache: [Player]? = nil
+
+    enum RemoteStatus {
+        case unknown
+        case success
+        case failed
+    }
+
+    /// Letzter Remote-Status (für initiale Anzeige)
+    private(set) var lastRemoteStatus: RemoteStatus = .unknown
 
     private init() {}
 
@@ -29,6 +46,7 @@ final class DataLoader {
         // Versuche: remote laden
         if let remote = try? await fetchRemote() {
             self.memoryCache = remote
+            await postRemoteSuccess()
             return
         }
 
@@ -36,6 +54,7 @@ final class DataLoader {
         if self.memoryCache == nil, let bundled = loadFromBundle() {
             self.memoryCache = bundled
         }
+        await postRemoteFailed()
     }
 
     /// Synchrone Abfrage für ViewModels:
@@ -68,7 +87,7 @@ final class DataLoader {
             throw URLError(.badServerResponse)
         }
 
-        // Decode kann ggf. spürbar sein → im Hintergrund-Task rechnen lassen
+        // Decode im Hintergrund-Task
         let players = try await Task.detached(priority: .userInitiated) {
             try JSONDecoder().decode([Player].self, from: data)
         }.value
@@ -93,5 +112,22 @@ final class DataLoader {
             print("❌ DataLoader: bundle decode error:", error)
             return nil
         }
+    }
+
+    // MARK: - Notifications
+
+    @MainActor
+    private func postRemoteSuccess() {
+        lastRemoteStatus = .success
+        NotificationCenter.default.post(name: .playersRemoteLoaded, object: nil)
+    }
+
+    @MainActor
+    private func postRemoteFailed() {
+        // Nur setzen, wenn wir nicht bereits success hatten
+        if lastRemoteStatus != .success {
+            lastRemoteStatus = .failed
+        }
+        NotificationCenter.default.post(name: .playersRemoteFailed, object: nil)
     }
 }

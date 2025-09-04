@@ -9,20 +9,29 @@ import SwiftUI
 
 /// Main menu that lets the user choose between different game modes.
 struct GameMenuView: View {
+    @State private var showRemoteWarning: Bool = false
+
     var body: some View {
         NavigationStack {
             VStack(spacing: 20) {
-                // Title of the application
+
+                // Title
                 Text("CS2 Multiplier")
                     .font(.largeTitle).bold()
                     .foregroundStyle(Theme.ctBlue)
 
-                // Subtitle prompting the user to pick a mode
+                // Subtitle
                 Text("Choose a game mode")
                     .font(.subheadline)
                     .foregroundStyle(Theme.ctBlueDim)
 
-                // Menu options for different games
+                // Remote failure banner
+                if showRemoteWarning {
+                    WarningBanner()
+                        .transition(.opacity)
+                }
+
+                // Menu options
                 VStack(spacing: 12) {
                     NavigationLink {
                         KillsGameView()
@@ -37,7 +46,7 @@ struct GameMenuView: View {
                             .toolbarBackground(Theme.bg, for: .navigationBar)
                             .toolbarBackground(.visible, for: .navigationBar)
                     } label: {
-                        MenuCard(title: "100 000 Deaths", subtitle: "Place players to hit the goal", systemImage: "skull")
+                        MenuCard(title: "100 000 Deaths", subtitle: "Place players to hit the goal", systemImage: "xmark.octagon")
                     }
 
                     NavigationLink {
@@ -57,7 +66,46 @@ struct GameMenuView: View {
             .background(Theme.bg)
             .toolbarBackground(Theme.bg, for: .navigationBar)
             .toolbarBackground(.visible, for: .navigationBar)
+            // Initial status on appear
+            .onAppear {
+                showRemoteWarning = (DataLoader.shared.lastRemoteStatus == .failed)
+            }
+            // React to notifications
+            .onReceive(NotificationCenter.default.publisher(for: .playersRemoteFailed)) { _ in
+                withAnimation { showRemoteWarning = true }
+            }
+            .onReceive(NotificationCenter.default.publisher(for: .playersRemoteLoaded)) { _ in
+                withAnimation { showRemoteWarning = false }
+            }
         }
+    }
+}
+
+/// Yellow warning in T-theme when remote loading failed
+private struct WarningBanner: View {
+    var body: some View {
+        HStack(alignment: .top, spacing: 10) {
+            Image(systemName: "wifi.exclamationmark")
+                .font(.headline)
+                .foregroundStyle(Theme.tYellow)
+
+            VStack(alignment: .leading, spacing: 4) {
+                Text("Failed to load player data")
+                    .font(.subheadline).bold()
+                    .foregroundStyle(Theme.tYellow)
+                Text("For up-to-date stats, please make sure you are connected to the Internet.")
+                    .font(.caption)
+                    .foregroundStyle(Theme.tYellow)
+            }
+            Spacer(minLength: 0)
+        }
+        .padding(10)
+        .background(Theme.tYellowBG)
+        .overlay(
+            RoundedRectangle(cornerRadius: 10)
+                .stroke(Theme.tYellowDim, lineWidth: 1)
+        )
+        .clipShape(RoundedRectangle(cornerRadius: 10))
     }
 }
 
