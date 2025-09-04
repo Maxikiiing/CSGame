@@ -12,7 +12,6 @@ struct BaseGameView: View {
 
     var body: some View {
         GeometryReader { geo in
-            // ---- Safe sizing (clamps for 0 / negative / non-finite) ----
             let safeW: CGFloat = (geo.size.width.isFinite && geo.size.width > 0)
                 ? geo.size.width
                 : UIScreen.main.bounds.width
@@ -22,17 +21,13 @@ struct BaseGameView: View {
             let columnsCount = 2
 
             let available = max(0, safeW - 2 * horizPadding)
-            // Max grid width, clamped >= 0
             let maxGridWidth = min(available, 340)
 
-            // Column width: handle tiny or zero grid width robustly
             let rawCol = (maxGridWidth - gridSpacing) / 2
             let colWidth = max(80, rawCol.isFinite ? rawCol : 120)
 
-            // Slot height derived from colWidth, but clamped
             let slotHeight = max(48, min(74, colWidth * 0.52))
 
-            // Candidate card height derived from safeW, clamped
             let rawCard = safeW * 0.28
             let cardHeight = max(76, min(110, rawCard.isFinite ? rawCard : 100))
 
@@ -62,7 +57,6 @@ struct BaseGameView: View {
                         ErrorCard(message: error) { vm.startNewRound() }
                             .padding(.top, 6)
                     } else {
-                        // 2×4 grid
                         LazyVGrid(
                             columns: Array(repeating: GridItem(.flexible(), spacing: gridSpacing), count: columnsCount),
                             spacing: gridSpacing
@@ -76,28 +70,31 @@ struct BaseGameView: View {
                                     case .ignored:   break
                                     }
                                 } label: {
-                                    SlotView(slot: slot)
-                                        .frame(
-                                            width: colWidth > 0 ? colWidth : 120,
-                                            height: slotHeight > 0 ? slotHeight : 60
-                                        )
+                                    SlotView(slot: slot, statKey: vm.config.stat)
+                                        .frame(width: colWidth, height: slotHeight)
                                         .contentShape(Rectangle())
                                 }
                                 .buttonStyle(.plain)
-                                .disabled(slot.player != nil || vm.currentCandidate == nil || vm.gameOver)
+                                // ⬇️ gesperrt: wenn belegt, kein Kandidat, Game over, Spin aktiv ODER Post-Spin-Lock
+                                .disabled(slot.player != nil
+                                          || vm.currentCandidate == nil
+                                          || vm.gameOver
+                                          || vm.isSpinning
+                                          || vm.isInteractionLocked)
                                 .animation(.spring(duration: 0.3), value: slot.player?.id)
                             }
                         }
-                        // Wenn maxGridWidth sehr klein (0) wäre, nutze breite Fallbacks
-                        .frame(maxWidth: (maxGridWidth > 0 ? maxGridWidth : .infinity))
+                        .frame(maxWidth: maxGridWidth > 0 ? maxGridWidth : .infinity)
                         .padding(.top, 6)
 
                         Group {
-                            if let p = vm.currentCandidate, !vm.gameOver {
-                                CandidateCard(player: p,
-                                              stat: vm.config.stat,
-                                              height: cardHeight > 0 ? cardHeight : 90)
-                                .transition(.opacity.combined(with: .scale))
+                            if vm.displayedName != nil || vm.isSpinning {
+                                UnifiedNameCard(
+                                    name: vm.displayedName,
+                                    isSpinning: vm.isSpinning,
+                                    height: cardHeight
+                                )
+                                .transition(.opacity)
                             } else if !vm.slots.contains(where: { $0.player == nil }) {
                                 ResultCard(total: vm.runningTotal,
                                            goal: vm.config.goal,
@@ -143,9 +140,9 @@ struct BaseGameView: View {
 
 // MARK: - Subviews
 
-/// Entire area is tap-target (wrapped by Button in parent).
 private struct SlotView: View {
     let slot: Slot
+    let statKey: GameStatKey
 
     var body: some View {
         let isFilled = (slot.player != nil)
@@ -164,7 +161,8 @@ private struct SlotView: View {
                     .foregroundStyle(isFilled ? Theme.ctBlue : Theme.tYellow)
 
                 if let p = slot.player {
-                    Text(p.name)
+                    let statVal = statKey.value(for: p)
+                    Text("(\(format(statVal))) \(p.name)")
                         .font(.caption2)
                         .lineLimit(1)
                         .minimumScaleFactor(0.7)
@@ -180,51 +178,40 @@ private struct SlotView: View {
     }
 }
 
-private struct CandidateCard: View {
-    let player: Player
-    let stat: GameStatKey
+/// Einheitliche Karte für Spin + finalen Namen
+private struct UnifiedNameCard: View {
+    let name: String?
+    let isSpinning: Bool
     let height: CGFloat
 
     var body: some View {
-        VStack(spacing: 6) {
-            Text("Current Player")
+        VStack(spacing: 0) {
+            // Header oben
+            Text(isSpinning ? "Drawing next player…" : "Current Player")
                 .font(.footnote)
                 .foregroundStyle(Theme.ctBlueDim)
                 .frame(maxWidth: .infinity, alignment: .center)
+                .padding(.top, 6)
 
-            VStack(spacing: 6) {
-                Text(player.name)
-                    .font(.headline)
-                    .bold()
-                    .multilineTextAlignment(.center)
-                    .lineLimit(1)
-                    .minimumScaleFactor(0.85)
-                    .foregroundStyle(Theme.ctBlue)
+            Spacer()
 
-                HStack(spacing: 8) {
-                    pill("Kills", player.kills)
-                    pill("Deaths", player.deaths)
-                    pill("Aces", player.acesOrZero)
-                }
-                .frame(maxWidth: .infinity, alignment: .center)
-            }
-            .padding(10)
-            .frame(maxWidth: .infinity)
-            .frame(height: height)
-            .background(Theme.cardBG)
-            .clipShape(RoundedRectangle(cornerRadius: 10))
+            // Name zentriert
+            Text(name ?? " ")
+                .font(.headline)
+                .bold()
+                .multilineTextAlignment(.center)
+                .lineLimit(1)
+                .minimumScaleFactor(0.85)
+                .foregroundStyle(isSpinning ? Theme.tYellow : Theme.ctBlue)
+                .animation(.easeInOut(duration: 0.15), value: isSpinning)
+
+            Spacer()
         }
-    }
-
-    private func pill(_ title: String, _ value: Int) -> some View {
-        VStack(spacing: 0) {
-            Text(title).font(.caption2).foregroundStyle(Theme.ctBlueDim)
-            Text(format(value)).font(.caption).bold().foregroundStyle(Theme.ctBlue)
-        }
-        .padding(.vertical, 4)
-        .padding(.horizontal, 6)
+        .padding(10)
+        .frame(maxWidth: .infinity)
+        .frame(height: height)
         .background(Theme.cardBG)
-        .clipShape(RoundedRectangle(cornerRadius: 6))
+        .clipShape(RoundedRectangle(cornerRadius: 10))
     }
 }
 

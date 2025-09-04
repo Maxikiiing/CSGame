@@ -43,9 +43,11 @@ enum PlacementOutcome {
     case ignored       // could not place (slot already filled / no candidate)
 }
 
+@MainActor
 final class GameViewModel: ObservableObject {
     @Published private(set) var config: GameConfig
-    // 🚫 Nicht mehr @Published: große Arrays bringen Main-Thread-Druck ohne UI-Nutzen.
+
+    // Große Arrays sind intern, um Render-Last gering zu halten
     private var allPlayers: [Player] = []
     private var availablePlayers: [Player] = []
 
@@ -54,8 +56,24 @@ final class GameViewModel: ObservableObject {
     @Published var gameOver: Bool = false
     @Published var dataError: String?
 
-    private var cancellables = Set<AnyCancellable>()
+    // Spinner / Anzeige
+    @Published var isSpinning: Bool = false
+    @Published var spinnerDisplayName: String?
+
+    /// Globale Interaktionssperre (während Spin + 0.2s danach)
+    @Published var isInteractionLocked: Bool = false
+
+    // (optional) für spätere Features
+    @Published private(set) var lastAddedValue: Int = 0
+
     private var currentCandidateIndex: Int?
+    private var spinTask: Task<Void, Never>?
+    private var cancellables = Set<AnyCancellable>()
+
+    /// Einheitliche Anzeige: während Spin der rollende Name, sonst der finale Kandidat.
+    var displayedName: String? {
+        isSpinning ? spinnerDisplayName : currentCandidate?.name
+    }
 
     init(config: GameConfig) {
         self.config = config
@@ -64,6 +82,9 @@ final class GameViewModel: ObservableObject {
     }
 
     func startNewRound() {
+        // laufenden Spin abbrechen
+        cancelSpin()
+
         let source = DataLoader.shared.loadPlayers()
         guard !source.isEmpty else {
             dataError = "No players loaded. Check your remote URL / bundle JSON."
@@ -71,7 +92,11 @@ final class GameViewModel: ObservableObject {
             slots = config.multipliers.map { Slot(multiplier: $0) }
             currentCandidate = nil
             currentCandidateIndex = nil
+            spinnerDisplayName = nil
+            isSpinning = false
+            isInteractionLocked = false
             gameOver = false
+            lastAddedValue = 0
             return
         }
 
@@ -82,10 +107,16 @@ final class GameViewModel: ObservableObject {
         gameOver = false
         currentCandidate = nil
         currentCandidateIndex = nil
+        spinnerDisplayName = nil
+        isSpinning = false
+        isInteractionLocked = false
+        lastAddedValue = 0
+
+        // Start-Kandidat kommt ohne Spin
         drawNextCandidate()
     }
 
-    func drawNextCandidate() {
+    private func drawNextCandidate() {
         guard !availablePlayers.isEmpty else {
             currentCandidate = nil
             currentCandidateIndex = nil
@@ -99,15 +130,21 @@ final class GameViewModel: ObservableObject {
     /// Places the current candidate into the given slot.
     /// Returns a `PlacementOutcome` so the view can trigger the right haptic.
     func placeCandidate(in slotID: UUID) -> PlacementOutcome {
-        guard let candidate = currentCandidate,
+        guard !isSpinning, !isInteractionLocked,
+              let candidate = currentCandidate,
               let sIdx = slots.firstIndex(where: { $0.id == slotID && $0.player == nil }),
               let cIdx = currentCandidateIndex
         else { return .ignored }
 
+        // Beitrag für evtl. Delta-Bedarf vorab berechnen
+        let base = config.stat.value(for: candidate)
+        let added = Int((Double(base) * slots[sIdx].multiplier).rounded())
+        lastAddedValue = max(0, added)
+
         // Kandidat im Slot ablegen
         slots[sIdx].player = candidate
 
-        // Aus dem Pool entfernen (O(1) amortisiert)
+        // Aus dem Pool entfernen
         availablePlayers.remove(at: cIdx)
 
         // Reset aktueller Kandidat
@@ -118,10 +155,89 @@ final class GameViewModel: ObservableObject {
             gameOver = true
             return .completed
         } else {
-            drawNextCandidate()
+            // Nach Placement: Slot-Machine-Spin → finaler nächster Kandidat
+            startSpinAndSelectNext()
             return .placed
         }
     }
+
+    // MARK: - Slot-Machine Spin mit 0.2s Nachlauf-Sperre
+
+    /// Startet eine 2.2s "Slot-Machine" Animation, die spinnerDisplayName updatet
+    /// und am Ende den nächsten Kandidaten final setzt. Nach Spin bleiben die Slots
+    /// noch 0.2s gesperrt, um den Übergang weicher zu machen.
+    private func startSpinAndSelectNext(duration: Double = 2.2, postLock: Double = 0.2) {
+        cancelSpin()
+        guard !availablePlayers.isEmpty else {
+            spinnerDisplayName = nil
+            isSpinning = false
+            isInteractionLocked = false
+            currentCandidate = nil
+            currentCandidateIndex = nil
+            return
+        }
+
+        // Ab sofort sperren
+        isInteractionLocked = true
+        isSpinning = true
+        spinnerDisplayName = nil
+
+        spinTask = Task { [weak self] in
+            guard let self else { return }
+            let start = CFAbsoluteTimeGetCurrent()
+            let end = start + duration
+
+            // Nur Namen referenzieren (leichtgewichtig)
+            let namePool = availablePlayers.map { $0.name }
+
+            while CFAbsoluteTimeGetCurrent() < end && !Task.isCancelled {
+                let now = CFAbsoluteTimeGetCurrent()
+                let t = max(0.0, min(1.0, (now - start) / duration)) // 0…1
+                let eased = easeOutCubic(t)
+                let interval = lerp(0.05, 0.18, eased) // 50ms → 180ms
+
+                if let anyName = namePool.randomElement() {
+                    self.spinnerDisplayName = anyName
+                }
+
+                try? await Task.sleep(nanoseconds: UInt64(interval * 1_000_000_000))
+            }
+
+            guard !Task.isCancelled else { return }
+
+            // Finalen Kandidaten setzen
+            let idx = Int.random(in: 0 ..< self.availablePlayers.count)
+            self.currentCandidateIndex = idx
+            self.currentCandidate = self.availablePlayers[idx]
+
+            // Spin ist visuell vorbei …
+            self.spinnerDisplayName = nil
+            self.isSpinning = false
+
+            // … aber Interaktion bleibt noch kurz gesperrt (0.2s)
+            if postLock > 0 {
+                try? await Task.sleep(nanoseconds: UInt64(postLock * 1_000_000_000))
+            }
+            self.isInteractionLocked = false
+        }
+    }
+
+    private func cancelSpin() {
+        spinTask?.cancel()
+        spinTask = nil
+        spinnerDisplayName = nil
+        isSpinning = false
+        isInteractionLocked = false
+    }
+
+    // Helpers
+    private func lerp(_ a: Double, _ b: Double, _ t: Double) -> Double { a + (b - a) * t }
+    private func easeOutCubic(_ t: Double) -> Double {
+        let p = 1 - (1 - t) * (1 - t) * (1 - t)
+        return p
+    }
+
+    // MARK: - Score/Progress
 
     var runningTotal: Int {
         slots.reduce(0) { sum, slot in
