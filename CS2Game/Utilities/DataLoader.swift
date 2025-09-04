@@ -23,7 +23,7 @@ extension Notification.Name {
 final class DataLoader {
     static let shared = DataLoader()
 
-    /// Remote-Quelle (GitHub Pages, HTTPS/ATS-konform)
+    /// Remote-Quelle (HTTPS/ATS-konform)
     private let remoteURL = URL(string: "https://maxikiiing.github.io/CSData/players_real_data.json")!
 
     /// In-Memory-Cache (wird beim App-Start / Preload gefüllt)
@@ -45,7 +45,7 @@ final class DataLoader {
 
     // MARK: - Öffentliche API
 
-    /// Asynchroner Preload – beim App-Start aufrufen.
+    /// Asynchroner Preload – beim App-Start/Menu-Start aufrufen.
     /// Holt remote (oder nutzt Bundle als Fallback) und befüllt den In-Memory-Cache.
     func preload() async {
         // 1) Versuche: remote laden
@@ -69,12 +69,12 @@ final class DataLoader {
     }
 
     /// Synchrone Abfrage für ViewModels:
-    /// - Gibt SOFORT den Memory-Cache zurück, wenn vorhanden.
-    /// - Führt KEIN synchrones Decoding auf dem Main-Thread mehr aus.
+    /// - Gibt SOFORT den Memory-Cache zurück, wenn vorhanden (ohne Shuffle).
+    /// - Führt KEIN synchrones Decoding auf dem Main-Thread aus.
     /// - Wenn noch kein Cache da ist, triggert Preload im Hintergrund und gibt [] zurück.
     func loadPlayers() -> [Player] {
         if let cached = memoryCache {
-            return cached.shuffled()
+            return cached              // unverändert zurückgeben, kein .shuffled()
         }
         // Noch kein Cache? Preload im Hintergrund starten, synchron nichts blockieren
         Task { await self.preload() }
@@ -92,7 +92,8 @@ final class DataLoader {
 
         // Decode im Hintergrund-Task
         let players = try await Task.detached(priority: .userInitiated) {
-            try JSONDecoder().decode([Player].self, from: data)
+            let decoder = JSONDecoder()
+            return try decoder.decode([Player].self, from: data)
         }.value
 
         print("✅ DataLoader: loaded \(players.count) players from remote.")
@@ -109,7 +110,8 @@ final class DataLoader {
             }
             do {
                 let data = try Data(contentsOf: url)
-                let players = try JSONDecoder().decode([Player].self, from: data)
+                let decoder = JSONDecoder()
+                let players = try decoder.decode([Player].self, from: data)
                 print("✅ DataLoader: loaded \(players.count) players from bundle (async).")
                 return players
             } catch {

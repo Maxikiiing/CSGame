@@ -45,14 +45,17 @@ enum PlacementOutcome {
 
 final class GameViewModel: ObservableObject {
     @Published private(set) var config: GameConfig
-    @Published private(set) var allPlayers: [Player] = []
-    @Published private(set) var availablePlayers: [Player] = []
+    // 🚫 Nicht mehr @Published: große Arrays bringen Main-Thread-Druck ohne UI-Nutzen.
+    private var allPlayers: [Player] = []
+    private var availablePlayers: [Player] = []
+
     @Published var slots: [Slot] = []
     @Published var currentCandidate: Player?
     @Published var gameOver: Bool = false
     @Published var dataError: String?
 
     private var cancellables = Set<AnyCancellable>()
+    private var currentCandidateIndex: Int?
 
     init(config: GameConfig) {
         self.config = config
@@ -67,24 +70,30 @@ final class GameViewModel: ObservableObject {
             allPlayers = []; availablePlayers = []
             slots = config.multipliers.map { Slot(multiplier: $0) }
             currentCandidate = nil
+            currentCandidateIndex = nil
             gameOver = false
             return
         }
 
         dataError = nil
         allPlayers = source
-        availablePlayers = Array(source.prefix(config.multipliers.count))
+        availablePlayers = source                  // kompletter Pool
         slots = config.multipliers.map { Slot(multiplier: $0) }
         gameOver = false
+        currentCandidate = nil
+        currentCandidateIndex = nil
         drawNextCandidate()
     }
 
     func drawNextCandidate() {
         guard !availablePlayers.isEmpty else {
             currentCandidate = nil
+            currentCandidateIndex = nil
             return
         }
-        currentCandidate = availablePlayers.randomElement()
+        let idx = Int.random(in: 0 ..< availablePlayers.count)
+        currentCandidateIndex = idx
+        currentCandidate = availablePlayers[idx]
     }
 
     /// Places the current candidate into the given slot.
@@ -92,12 +101,18 @@ final class GameViewModel: ObservableObject {
     func placeCandidate(in slotID: UUID) -> PlacementOutcome {
         guard let candidate = currentCandidate,
               let sIdx = slots.firstIndex(where: { $0.id == slotID && $0.player == nil }),
-              let poolIdx = availablePlayers.firstIndex(where: { $0.id == candidate.id })
+              let cIdx = currentCandidateIndex
         else { return .ignored }
 
+        // Kandidat im Slot ablegen
         slots[sIdx].player = candidate
-        availablePlayers.remove(at: poolIdx)
+
+        // Aus dem Pool entfernen (O(1) amortisiert)
+        availablePlayers.remove(at: cIdx)
+
+        // Reset aktueller Kandidat
         currentCandidate = nil
+        currentCandidateIndex = nil
 
         if slots.allSatisfy({ $0.player != nil }) {
             gameOver = true

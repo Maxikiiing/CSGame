@@ -15,10 +15,6 @@ struct CS2GameApp: App {
         WindowGroup {
             // The initial view presented to the user is the game menu.
             GameMenuView()
-                // ⬇️ Spieler-Daten einmalig beim App-Start asynchron vorladen
-                .task {
-                    await DataLoader.shared.preload()
-                }
         }
     }
 }

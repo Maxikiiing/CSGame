@@ -85,6 +85,10 @@ struct GameMenuView: View {
                 showRemoteWarning = (DataLoader.shared.lastRemoteStatus == .failed)
                 canNavigate = DataLoader.shared.hasCache
             }
+            // Start preload here to avoid any risk of first-frame blocking at app entry.
+            .task {
+                await DataLoader.shared.preload()
+            }
             // React to notifications
             .onReceive(NotificationCenter.default.publisher(for: .playersRemoteFailed)) { _ in
                 withAnimation { showRemoteWarning = true }
