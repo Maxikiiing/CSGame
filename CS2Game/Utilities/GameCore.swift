@@ -8,7 +8,7 @@
 import SwiftUI
 import Combine
 
-// Which attribute is scored?
+// Welche Kennzahl wird gewertet?
 enum GameStatKey: Equatable {
     case kills
     case deaths
@@ -18,15 +18,15 @@ enum GameStatKey: Equatable {
         switch self {
         case .kills:  return p.kills
         case .deaths: return p.deaths
-        case .aces:   return p.acesOrZero   // robust if some entries are 0/missing
+        case .aces:   return p.acesOrZero
         }
     }
 }
 
 struct GameConfig: Equatable {
-    let title: String         // e.g., "100 000 Kills"
-    let goal: Int             // e.g., 100_000
-    let multipliers: [Double] // 8 values for 2×4 layout
+    let title: String
+    let goal: Int
+    let multipliers: [Double] // 8 Stück (2×4)
     let stat: GameStatKey
 }
 
@@ -45,25 +45,38 @@ final class GameViewModel: ObservableObject {
     @Published var gameOver: Bool = false
     @Published var dataError: String?
 
+    private var cancellables = Set<AnyCancellable>()
+
     init(config: GameConfig) {
         self.config = config
         self.slots = config.multipliers.map { Slot(multiplier: $0) }
+
+        // Optional: auf Hintergrund-Updates reagieren (falls du später Notifications sendest)
+        // NotificationCenter.default.publisher(for: RemoteConfig.playersUpdatedNotification)
+        //     .receive(on: DispatchQueue.main)
+        //     .sink { [weak self] _ in
+        //         print("ℹ️ GameViewModel: players updated in background.")
+        //     }
+        //     .store(in: &cancellables)
+
         startNewRound()
     }
 
     func startNewRound() {
-        let source = loadPlayers()
+        // ⬇️ NEU: Aufruf über den Singleton
+        let source = DataLoader.shared.loadPlayers()
+
         guard !source.isEmpty else {
-            dataError = "No players loaded. Check that players_real_data.json is in the app bundle and decodes correctly."
+            dataError = "No players loaded. Check your remote URL / bundle JSON."
             allPlayers = []; availablePlayers = []
             slots = config.multipliers.map { Slot(multiplier: $0) }
             currentCandidate = nil
             gameOver = false
             return
         }
+
         dataError = nil
         allPlayers = source
-        // Take exactly as many as there are multipliers (2×4 layout = 8)
         availablePlayers = Array(source.prefix(config.multipliers.count))
         slots = config.multipliers.map { Slot(multiplier: $0) }
         gameOver = false
@@ -110,4 +123,3 @@ final class GameViewModel: ObservableObject {
 
     var hasWon: Bool { gameOver && runningTotal >= config.goal }
 }
-
