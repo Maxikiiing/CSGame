@@ -1,0 +1,44 @@
+{
+  "title": "Bingo – Weekly Challenge (Rich Conditions)",
+  "rows": 4,
+  "cols": 4,
+  "cells": [
+    { "kind": "nation", "nation": "France" },
+    { "kind": "nation", "nation": "United Kingdom" },
+    { "kind": "nation", "nation": "Israel" },
+    { "kind": "role",   "role":   "Sniper" },
+
+    { "kind": "kdMin", "value": 1.10 },
+    { "kind": "ageRange", "min": 18, "max": 24 },
+    { "kind": "min", "stat": "hltvMVPs", "value": 2 },
+    { "kind": "min", "stat": "kills", "value": 45000 },
+
+    { "kind": "range", "stat": "aces", "min": 100, "max": 180 },
+    { "kind": "max", "stat": "deaths", "value": 25000 },
+    { "kind": "teamHistory", "team": "G2" },
+    { "kind": "teamCurrent", "team": "NAVI" },
+
+    {
+      "kind": "allOf",
+      "conditions": [
+        { "kind": "nation", "nation": "Germany" },
+        { "kind": "min", "stat": "mapsPlayed", "value": 600 }
+      ]
+    },
+    {
+      "kind": "anyOf",
+      "conditions": [
+        { "kind": "min", "stat": "grenade", "value": 5000 },
+        { "kind": "min", "stat": "sniper", "value": 8000 }
+      ]
+    },
+    {
+      "kind": "noneOf",
+      "conditions": [
+        { "kind": "nation", "nation": "Russia" },
+        { "kind": "nation", "nation": "Belarus" }
+      ]
+    },
+    { "kind": "range", "stat": "kills", "min": 25000, "max": 55000 }
+  ]
+}

@@ -1,0 +1,27 @@
+
+{
+  "title": "Bingo – Random Test",
+  "rows": 4,
+  "cols": 4,
+  "cells": [
+    { "kind": "min", "stat": "kills",  "value": 20000 },
+    { "kind": "min", "stat": "kills",  "value": 30000 },
+    { "kind": "min", "stat": "deaths", "value": 15000 },
+    { "kind": "min", "stat": "aces",   "value": 100 },
+
+    { "kind": "max", "stat": "deaths", "value": 25000 },
+    { "kind": "range", "stat": "kills", "min": 25000, "max": 45000 },
+    { "kind": "range", "stat": "aces",  "min": 80, "max": 180 },
+    { "kind": "min", "stat": "kills",  "value": 50000 },
+
+    { "kind": "min", "stat": "deaths", "value": 20000 },
+    { "kind": "min", "stat": "kills",  "value": 35000 },
+    { "kind": "range", "stat": "aces",  "min": 120, "max": 220 },
+    { "kind": "max", "stat": "deaths", "value": 30000 },
+
+    { "kind": "min", "stat": "kills",  "value": 40000 },
+    { "kind": "range", "stat": "kills", "min": 15000, "max": 30000 },
+    { "kind": "min", "stat": "aces",   "value": 160 },
+    { "kind": "min", "stat": "deaths", "value": 10000 }
+  ]
+}
