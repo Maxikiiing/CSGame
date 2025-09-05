@@ -309,13 +309,19 @@ final class BingoViewModel: ObservableObject {
     @Published var dataError: String?
 
     var displayedName: String? { isSpinning ? spinnerDisplayName : currentCandidate?.name }
-
     var canReroll: Bool { !isSpinning && !isInteractionLocked && !gameOver && !availablePlayers.isEmpty }
 
     private var allPlayers: [RichPlayer] = []
     private var availablePlayers: [RichPlayer] = []
     private var currentCandidateIndex: Int?
     private var spinTask: Task<Void, Never>?
+
+    // MARK: - Timer/Leaderboard (NEU)
+    @Published var elapsed: TimeInterval = 0
+    @Published var isTimerRunning: Bool = false
+    private var timerCancellable: AnyCancellable?
+    private var startDate: Date?
+    private var hasPlacedFirst: Bool = false
 
     init(config: BingoConfig) {
         self.config = config
@@ -331,6 +337,9 @@ final class BingoViewModel: ObservableObject {
         currentCandidate = nil
         currentCandidateIndex = nil
         dataError = nil
+
+        // Timer reset (NEU)
+        resetTimer()
 
         let pool = RichDataLoader.shared.loadRichPlayers()
         guard !pool.isEmpty else {
@@ -394,6 +403,12 @@ final class BingoViewModel: ObservableObject {
 
         let cond = cells[i].condition
         if cond.matches(candidate) {
+            // Start timer on first successful placement (NEU)
+            if !hasPlacedFirst {
+                startTimer()
+                hasPlacedFirst = true
+            }
+
             cells[i].player = candidate
             availablePlayers.remove(at: cIdx)
             currentCandidate = nil
@@ -401,6 +416,9 @@ final class BingoViewModel: ObservableObject {
 
             if cells.allSatisfy({ $0.player != nil }) {
                 gameOver = true
+                // Stop + save to leaderboard (NEU)
+                stopTimer()
+                saveLeaderboard()
                 return .completed
             } else {
                 startSpinAndSelectNext()
@@ -416,8 +434,7 @@ final class BingoViewModel: ObservableObject {
         startSpinAndSelectNext(exclude: currentCandidate)
     }
 
-    // MARK: - Spin
-
+    // MARK: - Spin (unchanged)
     private func startSpinAndSelectNext(duration: Double = 2.2, postLock: Double = 0.2, exclude: RichPlayer? = nil) {
         cancelSpin()
         guard !availablePlayers.isEmpty else {
@@ -493,5 +510,64 @@ final class BingoViewModel: ObservableObject {
     private func easeOutCubic(_ t: Double) -> Double {
         let p = 1 - (1 - t) * (1 - t) * (1 - t)
         return p
+    }
+
+    // MARK: - Timer/Leaderboard helpers (NEU)
+
+    private func resetTimer() {
+        isTimerRunning = false
+        elapsed = 0
+        startDate = nil
+        hasPlacedFirst = false
+        timerCancellable?.cancel()
+        timerCancellable = nil
+    }
+
+    private func startTimer() {
+        guard !isTimerRunning else { return }
+        startDate = Date()
+        isTimerRunning = true
+        timerCancellable?.cancel()
+        timerCancellable = Timer.publish(every: 0.05, on: .main, in: .common)
+            .autoconnect()
+            .sink { [weak self] _ in
+                guard let self, let s = self.startDate else { return }
+                self.elapsed = Date().timeIntervalSince(s)
+            }
+    }
+
+    private func stopTimer() {
+        guard isTimerRunning else { return }
+        if let s = startDate { elapsed = Date().timeIntervalSince(s) }
+        isTimerRunning = false
+        timerCancellable?.cancel()
+        timerCancellable = nil
+    }
+
+    private func saveLeaderboard() {
+        let key = modeKey()
+        BingoLeaderboard.shared.addResult(modeKey: key, elapsed: elapsed)
+    }
+
+    func modeKey() -> String {
+        let size = "\(config.rows)x\(config.cols)"
+        switch config.source {
+        case .random:
+            return "random|\(size)"
+        case .seeded(let seed):
+            return "seeded:\(seed)|\(size)"
+        case .bundle(let res):
+            return "bundle:\(res)|\(size)"
+        case .remote(let url):
+            // nutze Dateiname, damit Weekly/Monthly unterscheidbar sind
+            let name = url.lastPathComponent
+            if url.absoluteString.contains("/weekly/") {
+                return "weekly:\(name)|\(size)"
+            } else if url.absoluteString.contains("/monthly/") {
+                return "monthly:\(name)|\(size)"
+            } else {
+                return "remote:\(name)|\(size)"
+            }
+        }
     }
 }

@@ -19,8 +19,13 @@ struct BingoBaseView: View {
                 VStack(spacing: 14) {
                     HeaderSection(title: vm.config.title)
 
-                    ProgressSection(filled: vm.cells.filter { $0.player != nil }.count,
-                                    total: vm.cells.count)
+                    // Progress + Timer nebeneinander (NEU)
+                    ProgressWithTimerSection(
+                        filled: vm.cells.filter { $0.player != nil }.count,
+                        total: vm.cells.count,
+                        elapsed: vm.elapsed,
+                        isRunning: vm.isTimerRunning
+                    )
 
                     BoardGridSection(vm: vm, metrics: metrics)
 
@@ -31,7 +36,10 @@ struct BingoBaseView: View {
                     ControlsSection(
                         onNewBoard: { vm.startNewBoard() },
                         onNewPlayer: { vm.rerollCandidate() },
-                        isNewPlayerEnabled: vm.canReroll
+                        isNewPlayerEnabled: vm.canReroll,
+                        // Leaderboard (NEU)
+                        modeKey: vm.modeKey(),
+                        modeTitle: vm.config.title
                     )
                 }
                 .padding(.top, 12)
@@ -89,13 +97,36 @@ private struct HeaderSection: View {
     }
 }
 
-private struct ProgressSection: View {
+// NEU: Progress + Timer
+private struct ProgressWithTimerSection: View {
     let filled: Int
     let total: Int
+    let elapsed: TimeInterval
+    let isRunning: Bool
+
     var body: some View {
-        Text("Filled: \(filled) / \(total)")
-            .font(.caption)
-            .foregroundStyle(Theme.ctBlueDim)
+        HStack {
+            Text("Filled: \(filled) / \(total)")
+                .font(.caption)
+                .foregroundStyle(Theme.ctBlueDim)
+                .padding(.leading, 6) // „etwas nach rechts verschoben“
+
+            Spacer(minLength: 8)
+
+            Text(timerString(elapsed, running: isRunning))
+                .font(.caption).monospacedDigit()
+                .foregroundStyle(isRunning ? Theme.tYellow : Theme.ctBlue)
+        }
+        .frame(maxWidth: 360)
+    }
+
+    private func timerString(_ t: TimeInterval, running: Bool) -> String {
+        let totalMs = Int((t * 100).rounded())
+        let minutes = totalMs / 6000
+        let seconds = (totalMs % 6000) / 100
+        let hundredth = totalMs % 100
+        let base = String(format: "%02d:%02d.%02d", minutes, seconds, hundredth)
+        return running ? "⏱ \(base)" : "⏲︎ \(base)"
     }
 }
 
@@ -164,46 +195,76 @@ private struct ControlsSection: View {
     let onNewPlayer: () -> Void
     let isNewPlayerEnabled: Bool
 
+    // NEU: Leaderboard Navigation
+    let modeKey: String
+    let modeTitle: String
+
     var body: some View {
-        HStack(spacing: 12) {
-            Button(action: onNewBoard) {
-                Text("New Board")
-                    .font(.headline)
-                    .foregroundStyle(Theme.tYellow)
-                    .frame(maxWidth: 160)
-                    .padding(.vertical, 10)
-                    .background(Theme.tYellowBG)
-                    .overlay(
-                        RoundedRectangle(cornerRadius: 10)
-                            .stroke(Theme.tYellowDim, lineWidth: 1)
-                    )
-                    .clipShape(RoundedRectangle(cornerRadius: 10))
+        VStack(spacing: 12) {
+            HStack(spacing: 12) {
+                Button(action: onNewBoard) {
+                    Text("New Board")
+                        .font(.headline)
+                        .foregroundStyle(Theme.tYellow)
+                        .frame(maxWidth: 160)
+                        .padding(.vertical, 10)
+                        .background(Theme.tYellowBG)
+                        .overlay(
+                            RoundedRectangle(cornerRadius: 10)
+                                .stroke(Theme.tYellowDim, lineWidth: 1)
+                        )
+                        .clipShape(RoundedRectangle(cornerRadius: 10))
+                }
+                .buttonStyle(.plain)
+
+                Button(action: onNewPlayer) {
+                    Text("New Player")
+                        .font(.headline)
+                        .foregroundStyle(Theme.ctBlue)
+                        .frame(maxWidth: 160)
+                        .padding(.vertical, 10)
+                        .background(Theme.cardBG)
+                        .overlay(
+                            RoundedRectangle(cornerRadius: 10)
+                                .stroke(Theme.slotStrokeEmpty, lineWidth: 1)
+                        )
+                        .clipShape(RoundedRectangle(cornerRadius: 10))
+                }
+                .buttonStyle(.plain)
+                .disabled(!isNewPlayerEnabled)
+
+                Spacer()
+            }
+            .frame(maxWidth: 360)
+
+            // Leaderboard Button unten (NEU)
+            NavigationLink {
+                BingoLeaderboardView(modeKey: modeKey, title: "Best Tries")
+                    .toolbarBackground(Theme.bg, for: .navigationBar)
+                    .toolbarBackground(.visible, for: .navigationBar)
+            } label: {
+                HStack {
+                    Image(systemName: "trophy")
+                    Text("Leaderboard")
+                        .font(.headline)
+                }
+                .foregroundStyle(Theme.ctBlue)
+                .frame(maxWidth: 360)
+                .padding(.vertical, 10)
+                .background(Theme.cardBG)
+                .overlay(
+                    RoundedRectangle(cornerRadius: 10)
+                        .stroke(Theme.slotStrokeEmpty, lineWidth: 1)
+                )
+                .clipShape(RoundedRectangle(cornerRadius: 10))
             }
             .buttonStyle(.plain)
-
-            Button(action: onNewPlayer) {
-                Text("New Player")
-                    .font(.headline)
-                    .foregroundStyle(Theme.ctBlue)
-                    .frame(maxWidth: 160)
-                    .padding(.vertical, 10)
-                    .background(Theme.cardBG)
-                    .overlay(
-                        RoundedRectangle(cornerRadius: 10)
-                            .stroke(Theme.slotStrokeEmpty, lineWidth: 1)
-                    )
-                    .clipShape(RoundedRectangle(cornerRadius: 10))
-            }
-            .buttonStyle(.plain)
-            .disabled(!isNewPlayerEnabled)
-
-            Spacer()
         }
         .frame(maxWidth: 360)
     }
 }
 
-// MARK: - Cell & Shared Cards
+// MARK: - Cell & Shared Cards (unverändert)
 
 private struct BingoCellView: View {
     let cell: BingoCell
