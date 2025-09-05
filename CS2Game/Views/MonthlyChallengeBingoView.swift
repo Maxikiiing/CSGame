@@ -1,8 +1,8 @@
 //
-//  MonthlyChallengeBinoView.swift
+//  MonthlyChallengeBingoView.swift
 //  CS2Game
 //
-//  Created by Maximilian Kunzmann on 04.09.25.
+//  Created by Maximilian Kunzmann on 05.09.25.
 //
 
 import SwiftUI
@@ -12,7 +12,7 @@ struct MonthlyChallengeBingoView: View {
         let (url, suffix) = Self.monthlyURLAndTitle()
         let cfg = BingoConfig(
             title: "Bingo – Monthly Challenge (\(suffix))",
-            rows: 4,
+            rows: 3,
             cols: 4,
             source: .remote(url: url)
         )
