@@ -20,6 +20,24 @@ struct SeededGenerator: RandomNumberGenerator {
     }
 }
 
+// MARK: - Slot-Kind (für Limits & Gewichtung)
+
+/// Abstrakter Typ eines Slots (für Limits/Zählung).
+/// Beispiele:
+///  - .min(.kills) ist ein anderer Typ als .min(.deaths)
+///  - .kdMin ist ein anderer Typ als .kdMax
+///  - nation / role / rolesAllOf / teamHistory sind eigene Typen
+enum BingoSlotKind: Hashable {
+    case min(BingoStatKey)
+    case max(BingoStatKey)
+    case nationOneOf
+    case roleOneOf
+    case rolesAllOf
+    case teamHistoryOneOf
+    case kdMin
+    case kdMax
+}
+
 // MARK: - Baukasten: Slot-Blueprints (nur explizit gewünschte Typen)
 
 enum BingoSlotBlueprint {
@@ -31,6 +49,20 @@ enum BingoSlotBlueprint {
     case teamHistoryOneOf([Team])
     case kdMin(choices: [Double])
     case kdMax(choices: [Double])
+
+    /// Liefert den abstrakten Slot-Typ für Limits/Zählung.
+    var kind: BingoSlotKind {
+        switch self {
+        case .min(let stat, _): return .min(stat)
+        case .max(let stat, _): return .max(stat)
+        case .nationOneOf:      return .nationOneOf
+        case .roleOneOf:        return .roleOneOf
+        case .rolesAllOf:       return .rolesAllOf
+        case .teamHistoryOneOf: return .teamHistoryOneOf
+        case .kdMin:            return .kdMin
+        case .kdMax:            return .kdMax
+        }
+    }
 
     func makeCondition<R: RandomNumberGenerator>(using rng: inout R) -> BingoCondition {
         switch self {
@@ -55,17 +87,109 @@ enum BingoSlotBlueprint {
     }
 }
 
-// MARK: - Set von Blueprints + Generator
+// MARK: - Gewichtete Blueprints
+
+struct WeightedBlueprint {
+    let blueprint: BingoSlotBlueprint
+    let weight: Int
+    var kind: BingoSlotKind { blueprint.kind }
+
+    init(_ blueprint: BingoSlotBlueprint, weight: Int = 1) {
+        self.blueprint = blueprint
+        self.weight = max(1, weight)
+    }
+}
+
+// MARK: - Set von Blueprints + Generator (mit per-Typ-Limits & Gewichtung)
 
 struct BingoBlueprintSet {
     let name: String
-    let blueprints: [BingoSlotBlueprint]
+    let weighted: [WeightedBlueprint]
 
+    /// Globales Default-Limit: max. wie oft ein Slot-Typ im Grid vorkommen darf,
+    /// wenn kein spezifisches Limit für diesen Typ gesetzt ist.
+    let maxPerKindDefault: Int
+
+    /// Spezifische Limits pro Slot-Typ (Overrides).
+    let perKindLimits: [BingoSlotKind: Int]
+
+    init(
+        name: String,
+        weighted: [WeightedBlueprint],
+        maxPerKindDefault: Int = 2,
+        perKindLimits: [BingoSlotKind: Int] = [:]
+    ) {
+        self.name = name
+        self.weighted = weighted
+        self.maxPerKindDefault = max(1, maxPerKindDefault)
+        self.perKindLimits = perKindLimits
+    }
+
+    /// Ermittelt das Limit für einen Typ (Override > Default).
+    private func limit(for kind: BingoSlotKind) -> Int {
+        return max(perKindLimits[kind] ?? maxPerKindDefault, 1)
+    }
+
+    /// Erzeugt `count` Zufalls-Bedingungen gemäß Gewichtung & Limits.
+    /// Hinweis: Wenn die Summe aller Maxima < count ist, werden Limits weicher gehandhabt,
+    /// um das Board dennoch zu füllen.
     func generateConditions(count: Int, seed: Int? = nil) -> [BingoCondition] {
         var rng = SeededGenerator(seed: seed ?? Int.random(in: 0...Int.max))
-        return (0..<count).map { _ in
-            blueprints.randomElement(using: &rng)!.makeCondition(using: &rng)
+        var result: [BingoCondition] = []
+        var usedPerKind: [BingoSlotKind: Int] = [:]
+
+        // (Optional) Debug-Info
+        #if DEBUG
+        let distinctKinds = Set(weighted.map { $0.kind })
+        let capacity = distinctKinds.reduce(0) { $0 + limit(for: $1) }
+        if capacity < count {
+            print("⚠️ BingoBlueprintSet '\(name)': Summe der Limits (\(capacity)) < Grid-Zellen (\(count)). " +
+                  "Es könnte zu weicher Limitierung kommen, um das Board zu füllen.")
         }
+        #endif
+
+        for _ in 0..<count {
+            // 1) Erlaubte Blueprints unter Limit filtern
+            let allowed = weighted.filter { usedPerKind[$0.kind, default: 0] < limit(for: $0.kind) }
+
+            // 2) Wähle aus allowed (falls leer, weichere Handhabung: kompletter Pool)
+            let pool = allowed.isEmpty ? weighted : allowed
+
+            // 3) Gewichtete Auswahl mit ein paar Versuchen, ein Item < Limit zu erwischen
+            var chosen: WeightedBlueprint!
+            var attempts = 0
+            let maxAttempts = 24
+            repeat {
+                let idx = weightedRandomIndex(in: pool, using: &rng)
+                let candidate = pool[idx]
+                if usedPerKind[candidate.kind, default: 0] < limit(for: candidate.kind) || allowed.isEmpty {
+                    chosen = candidate
+                    break
+                }
+                attempts += 1
+            } while attempts < maxAttempts
+
+            if chosen == nil {
+                chosen = pool.randomElement(using: &rng)!
+            }
+
+            // 4) Condition bauen + zählen
+            let cond = chosen.blueprint.makeCondition(using: &rng)
+            result.append(cond)
+            usedPerKind[chosen.kind, default: 0] += 1
+        }
+        return result
+    }
+
+    // Gewichtete Index-Auswahl
+    private func weightedRandomIndex<R: RandomNumberGenerator>(in items: [WeightedBlueprint], using rng: inout R) -> Int {
+        let total = items.reduce(0) { $0 + $1.weight }
+        var t = Int.random(in: 0..<total, using: &rng)
+        for (i, wb) in items.enumerated() {
+            t -= wb.weight
+            if t < 0 { return i }
+        }
+        return max(0, items.indices.last ?? 0)
     }
 }
 
@@ -106,55 +230,102 @@ enum BingoBlueprints {
 
     // Attribute-Pools
     private static let COMMON_NATIONS: [Nation] = [
-        .France, .UnitedKingdom, .Israel, .Denmark, .Sweden, .Germany, .Ukraine, .Russia, .Finland
+        .France, .UnitedKingdom, .Israel, .Denmark, .Sweden, .Germany,
+        .Poland, .Ukraine, .Russia, .Netherlands, .Belgium, .Finland
     ]
     private static let COMMON_TEAMS: [Team] = [
         .G2, .NAVI, .Vitality, .FaZe, .Astralis, .MOUZ, .ENCE, .Heroic, .Liquid, .Cloud9,
         .VirtusPro, .NIP, .Fnatic, .FURIA, .Complexity, .Spirit, .BIG
     ]
 
+    /// Hilfs-Shortcut
+    private static func W(_ bp: BingoSlotBlueprint, _ weight: Int) -> WeightedBlueprint {
+        WeightedBlueprint(bp, weight: weight)
+    }
+
+    /// Per-Typ-Limits (Overrides). Nicht gelistete Typen nutzen das Default-Limit (unten).
+    /// 👉 Zum Aktivieren einfach `//` entfernen und Zahl anpassen.
+    private static let LIMITS: [BingoSlotKind: Int] = [
+        // --- INT-basierte min ---
+        .min(.eDPI): 1,           // aktiv: min eDPI max 1× im Grid
+        .min(.kills): 3,          // aktiv: min Kills max 3× im Grid
+
+        // // .min(.deaths): 2,
+        .min(.grandSlams): 1,
+        .min(.majorMVPs): 1,
+        // // .min(.grenade): 2,
+        // // .min(.sniper): 2,
+        // // .min(.majors): 2,
+        // // .min(.sTierTrophies): 2,
+        .min(.age): 1,
+        // // .min(.rolesCount): 2,
+        // // .min(.teamsCount): 2,
+
+        // --- INT-basierte max ---
+        // // .max(.deaths): 2,
+        // // .max(.sniper): 1,
+        // // .max(.age): 2,
+         .max(.eDPI): 1,
+        .max(.teamsCount): 1,
+
+        // --- KD ---
+        // // .kdMin: 2,
+        // // .kdMax: 1,
+
+        // --- Attribute ---
+        .nationOneOf: 2,
+        // // .roleOneOf: 2,
+        .rolesAllOf: 1,
+        // // .teamHistoryOneOf: 2,
+    ]
+
+    /// Standard-Set mit:
+    ///  - **Gewichtung** (höher = häufiger)
+    ///  - **Limits** pro Slot-Typ (siehe LIMITS), Default sonst = 2
     static let defaultSet = BingoBlueprintSet(
         name: "default",
-        blueprints: [
+        weighted: [
             // --- Stats (deine Vorgaben) ---
-            .min(stat: .kills,         choices: KILL_MIN_CHOICES),
+            W(.min(stat: .kills,         choices: KILL_MIN_CHOICES),          3),
 
-            .min(stat: .deaths,        choices: MIN_DEATHS_CHOICES),
-            .max(stat: .deaths,        choices: MAX_DEATHS_CHOICES),
+            W(.min(stat: .deaths,        choices: MIN_DEATHS_CHOICES),        1),
+            W(.max(stat: .deaths,        choices: MAX_DEATHS_CHOICES),        1),
 
-            .min(stat: .grandSlams,    choices: GRAND_SLAM_CHOICES),
-            .min(stat: .majorMVPs,     choices: MAJOR_MVP_CHOICES),
-            .min(stat: .grenade,       choices: GRENADE_MIN_CHOICES),
-            .min(stat: .sniper,        choices: SNIPER_MIN_CHOICES),
-            .max(stat: .sniper,        choices: SNIPER_MAX_CHOICES),
+            W(.min(stat: .grandSlams,    choices: GRAND_SLAM_CHOICES),        1),
+            W(.min(stat: .majorMVPs,     choices: MAJOR_MVP_CHOICES),         1),
+            W(.min(stat: .grenade,       choices: GRENADE_MIN_CHOICES),       2),
+            W(.min(stat: .sniper,        choices: SNIPER_MIN_CHOICES),        2),
+            W(.max(stat: .sniper,        choices: SNIPER_MAX_CHOICES),        1),
 
-            .min(stat: .majors,        choices: MIN_MAJORS_CHOICES),
-            .min(stat: .sTierTrophies, choices: S_TIER_TROPHY_CHOICES),
+            W(.min(stat: .majors,        choices: MIN_MAJORS_CHOICES),        2),
+            W(.min(stat: .sTierTrophies, choices: S_TIER_TROPHY_CHOICES),     1),
 
             // Alter
-            .min(stat: .age,           choices: MIN_AGE_CHOICES),
-            .max(stat: .age,           choices: MAX_AGE_CHOICES),
+            W(.min(stat: .age,           choices: MIN_AGE_CHOICES),           1),
+            W(.max(stat: .age,           choices: MAX_AGE_CHOICES),           1),
 
             // Rollen
-            .roleOneOf(COMMON_ROLES),
-            .rolesAllOf(pairs: TWO_ROLE_PAIRS),
-            .min(stat: .rolesCount,    choices: [2]),
+            W(.roleOneOf(COMMON_ROLES),                                       2),
+            W(.rolesAllOf(pairs: TWO_ROLE_PAIRS),                             1),
+            W(.min(stat: .rolesCount,    choices: [2]),                       1),
 
             // Team-Count (Historie)
-            .min(stat: .teamsCount,    choices: TEAMS_MIN_CHOICES),
-            .max(stat: .teamsCount,    choices: TEAMS_MAX_CHOICES),
+            W(.min(stat: .teamsCount,    choices: TEAMS_MIN_CHOICES),         2),
+            W(.max(stat: .teamsCount,    choices: TEAMS_MAX_CHOICES),         1),
 
             // eDPI
-            .min(stat: .eDPI,          choices: EDPI_MIN_CHOICES),
-            .max(stat: .eDPI,          choices: EDPI_MAX_CHOICES),
+            W(.min(stat: .eDPI,          choices: EDPI_MIN_CHOICES),          1),
+            W(.max(stat: .eDPI,          choices: EDPI_MAX_CHOICES),          1),
 
             // KD
-            .kdMin(choices: KD_MIN_CHOICES),
-            .kdMax(choices: KD_MAX_CHOICES),
+            W(.kdMin(choices: KD_MIN_CHOICES),                                 2),
+            W(.kdMax(choices: KD_MAX_CHOICES),                                 1),
 
             // Attribute
-            .teamHistoryOneOf(COMMON_TEAMS),
-            .nationOneOf(COMMON_NATIONS)
-        ]
+            W(.teamHistoryOneOf(COMMON_TEAMS),                                 2),
+            W(.nationOneOf(COMMON_NATIONS),                                    2)
+        ],
+        maxPerKindDefault: 2,
+        perKindLimits: LIMITS
     )
 }
