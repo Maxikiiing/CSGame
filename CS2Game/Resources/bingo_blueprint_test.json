@@ -1,0 +1,26 @@
+{
+  "title": "Bingo – Blueprint Test (No CurrentTeam)",
+  "rows": 4,
+  "cols": 4,
+  "cells": [
+    { "kind": "nation", "nation": "Germany" },
+    { "kind": "role", "role": "Sniper" },
+    { "kind": "kdMin", "value": 1.10 },
+    { "kind": "min", "stat": "kills", "value": 45000 },
+
+    { "kind": "ageRange", "min": 20, "max": 26 },
+    { "kind": "min", "stat": "hltvMVPs", "value": 2 },
+    { "kind": "teamHistory", "team": "G2" },
+    { "kind": "range", "stat": "kills", "min": 25000, "max": 55000 },
+
+    { "kind": "min", "stat": "mapsPlayed", "value": 600 },
+    { "kind": "min", "stat": "majors", "value": 2 },
+    { "kind": "min", "stat": "majorMVPs", "value": 1 },
+    { "kind": "nation", "nation": "France" },
+
+    { "kind": "role", "role": "IGL" },
+    { "kind": "min", "stat": "aces", "value": 150 },
+    { "kind": "min", "stat": "deaths", "value": 20000 },
+    { "kind": "max", "stat": "age", "value": 26 }
+  ]
+}

@@ -8,16 +8,34 @@
 import SwiftUI
 import Combine
 
+// MARK: - Int-Stat Keys für generische min/max/range-Bedingungen
+
 enum BingoStatKey: String, Codable, CaseIterable {
-    case kills
-    case deaths
-    case aces
+    case kills, deaths, aces
+    case grenade, sniper, rifle, four_Ks, zero_Ks, mapsPlayed
+    case grandSlams, majors, sTierTrophies, hltvMVPs, majorMVPs
+    case eDPI, age
+    case rolesCount   // ← NEU: Anzahl der Rollentypen
 
     func value(for p: RichPlayer) -> Int {
         switch self {
-        case .kills:  return p.kills
-        case .deaths: return p.deaths
-        case .aces:   return p.aces
+        case .kills:         return p.kills
+        case .deaths:        return p.deaths
+        case .aces:          return p.aces
+        case .grenade:       return p.grenade
+        case .sniper:        return p.sniper
+        case .rifle:         return p.rifle
+        case .four_Ks:       return p.four_Ks
+        case .zero_Ks:       return p.zero_Ks
+        case .mapsPlayed:    return p.mapsPlayed
+        case .grandSlams:    return p.grandSlams
+        case .majors:        return p.majors
+        case .sTierTrophies: return p.sTierTrophies
+        case .hltvMVPs:      return p.hltvMVPs
+        case .majorMVPs:     return p.majorMVPs
+        case .eDPI:          return p.eDPI
+        case .age:           return p.age
+        case .rolesCount:    return p.roles.count   // ← NEU
         }
     }
 
@@ -26,15 +44,55 @@ enum BingoStatKey: String, Codable, CaseIterable {
         case .kills: return "Kills"
         case .deaths: return "Deaths"
         case .aces: return "Aces"
+        case .grenade: return "Grenade"
+        case .sniper: return "Sniper"
+        case .rifle: return "Rifle"
+        case .four_Ks: return "4Ks"
+        case .zero_Ks: return "0Ks"
+        case .mapsPlayed: return "Maps"
+        case .grandSlams: return "Intel Grand Slams"
+        case .majors: return "Majors"
+        case .sTierTrophies: return "S-Tier Trophies"
+        case .hltvMVPs: return "HLTV MVPs"
+        case .majorMVPs: return "Major MVPs"
+        case .eDPI: return "eDPI"
+        case .age: return "Age"
+        case .rolesCount: return "Roles" // ← NEU
         }
     }
 }
 
+// MARK: - Lesbare Namen für UI
+
+private extension Role {
+    var displayName: String {
+        switch self {
+        case .IGL: return "IGL"
+        case .Rifler: return "Rifler"
+        case .Sniper: return "Sniper"
+        case .other(let s): return s
+        }
+    }
+}
+
+// MARK: - Bedingungen (ohne CurrentTeam)
+
 enum BingoCondition: Codable, Equatable {
+    // Int-basierte Bedingungen
     case min(stat: BingoStatKey, value: Int)
     case max(stat: BingoStatKey, value: Int)
     case range(stat: BingoStatKey, min: Int, max: Int)
+
+    // Attribute
     case nation(Nation)
+    case role(Role)
+    case teamHistory(Team)     // jemals im Team
+    case ageRange(min: Int, max: Int)
+
+    // KD (Double) separat, um JSON klar zu halten
+    case kdMin(Double)
+    case kdMax(Double)
+    case kdRange(min: Double, max: Double)
 
     func matches(_ p: RichPlayer) -> Bool {
         switch self {
@@ -45,22 +103,51 @@ enum BingoCondition: Codable, Equatable {
         case .range(let stat, let lo, let hi):
             let val = stat.value(for: p)
             return val >= lo && val <= hi
+
         case .nation(let n):
             return p.nation == n
+        case .role(let r):
+            return p.roles.contains(r)
+        case .teamHistory(let t):
+            return p.teamHistory.contains(t)
+        case .ageRange(let lo, let hi):
+            return p.age >= lo && p.age <= hi
+
+        case .kdMin(let x):
+            return p.kd >= x
+        case .kdMax(let x):
+            return p.kd <= x
+        case .kdRange(let lo, let hi):
+            return p.kd >= lo && p.kd <= hi
         }
     }
 
+    // Öffentliche, kompakte UI-Beschreibung
     var text: String {
         switch self {
         case .min(let stat, let v):            return "≥ \(format(v)) \(stat.displayName)"
         case .max(let stat, let v):            return "≤ \(format(v)) \(stat.displayName)"
         case .range(let stat, let lo, let hi): return "\(format(lo))–\(format(hi)) \(stat.displayName)"
         case .nation(let n):                   return "Nation: \(n.displayName)"
+        case .role(let r):                     return "Role: \(r.displayName)"
+        case .teamHistory(let t):              return "Played for: \(t.displayName)"
+        case .ageRange(let lo, let hi):        return "Age: \(lo)–\(hi)"
+        case .kdMin(let x):                    return String(format: "KD ≥ %.2f", x)
+        case .kdMax(let x):                    return String(format: "KD ≤ %.2f", x)
+        case .kdRange(let lo, let hi):         return String(format: "KD %.2f–%.2f", lo, hi)
         }
     }
 
-    private enum CodingKeys: String, CodingKey { case kind, stat, value, min, max, nation }
-    private enum Kind: String, Codable { case min, max, range, nation }
+    // Codable
+
+    private enum CodingKeys: String, CodingKey {
+        case kind, stat, value, min, max, nation, role, team
+    }
+    private enum Kind: String, Codable {
+        case min, max, range
+        case nation, role, teamHistory, ageRange
+        case kdMin, kdMax, kdRange
+    }
 
     init(from decoder: Decoder) throws {
         let c = try decoder.container(keyedBy: CodingKeys.self)
@@ -75,39 +162,80 @@ enum BingoCondition: Codable, Equatable {
             self = .range(stat: try c.decode(BingoStatKey.self, forKey: .stat),
                           min: try c.decode(Int.self, forKey: .min),
                           max: try c.decode(Int.self, forKey: .max))
+
         case .nation:
-            if let n = try? c.decode(Nation.self, forKey: .nation) {
-                self = .nation(n)
-            } else if let n = try? c.decode(Nation.self, forKey: .value) {
-                self = .nation(n)
-            } else {
-                throw DecodingError.dataCorruptedError(forKey: .nation, in: c, debugDescription: "Nation missing")
-            }
+            self = .nation(try c.decode(Nation.self, forKey: .nation))
+        case .role:
+            self = .role(try c.decode(Role.self, forKey: .role))
+        case .teamHistory:
+            self = .teamHistory(try c.decode(Team.self, forKey: .team))
+        case .ageRange:
+            self = .ageRange(min: try c.decode(Int.self, forKey: .min),
+                             max: try c.decode(Int.self, forKey: .max))
+
+        case .kdMin:
+            self = .kdMin(try c.decode(Double.self, forKey: .value))
+        case .kdMax:
+            self = .kdMax(try c.decode(Double.self, forKey: .value))
+        case .kdRange:
+            self = .kdRange(min: try c.decode(Double.self, forKey: .min),
+                            max: try c.decode(Double.self, forKey: .max))
         }
     }
 
     func encode(to encoder: Encoder) throws {
         var c = encoder.container(keyedBy: CodingKeys.self)
         switch self {
-        case .min(let stat, let v):
+        case .min(let s, let v):
             try c.encode(Kind.min, forKey: .kind)
-            try c.encode(stat, forKey: .stat)
+            try c.encode(s, forKey: .stat)
             try c.encode(v, forKey: .value)
-        case .max(let stat, let v):
+
+        case .max(let s, let v):
             try c.encode(Kind.max, forKey: .kind)
-            try c.encode(stat, forKey: .stat)
+            try c.encode(s, forKey: .stat)
             try c.encode(v, forKey: .value)
-        case .range(let stat, let lo, let hi):
+
+        case .range(let s, let lo, let hi):
             try c.encode(Kind.range, forKey: .kind)
-            try c.encode(stat, forKey: .stat)
+            try c.encode(s, forKey: .stat)
             try c.encode(lo, forKey: .min)
             try c.encode(hi, forKey: .max)
+
         case .nation(let n):
             try c.encode(Kind.nation, forKey: .kind)
             try c.encode(n, forKey: .nation)
+
+        case .role(let r):
+            try c.encode(Kind.role, forKey: .kind)
+            try c.encode(r, forKey: .role)
+
+        case .teamHistory(let t):
+            try c.encode(Kind.teamHistory, forKey: .kind)
+            try c.encode(t, forKey: .team)
+
+        case .ageRange(let lo, let hi):
+            try c.encode(Kind.ageRange, forKey: .kind)
+            try c.encode(lo, forKey: .min)
+            try c.encode(hi, forKey: .max)
+
+        case .kdMin(let x):
+            try c.encode(Kind.kdMin, forKey: .kind)
+            try c.encode(x, forKey: .value)
+
+        case .kdMax(let x):
+            try c.encode(Kind.kdMax, forKey: .kind)
+            try c.encode(x, forKey: .value)
+
+        case .kdRange(let lo, let hi):
+            try c.encode(Kind.kdRange, forKey: .kind)
+            try c.encode(lo, forKey: .min)
+            try c.encode(hi, forKey: .max)
         }
     }
 }
+
+// MARK: - Model-Strukturen & VM
 
 struct BingoCell: Identifiable, Equatable, Codable {
     let id: UUID
@@ -228,22 +356,9 @@ final class BingoViewModel: ObservableObject {
     }
 
     static func generateRandomBoard(rows: Int, cols: Int, seed: Int? = nil) -> [BingoCell] {
-        var rng = SeededGenerator(seed: seed ?? Int.random(in: 0...Int.max))
         let count = max(1, rows * cols)
-
-        let killThresholds   = [15_000, 25_000, 35_000, 45_000, 60_000]
-        let deathThresholds  = [10_000, 20_000, 30_000, 40_000, 50_000]
-        let aceThresholds    = [50, 100, 150, 200, 300]
-
-        func randomCondition() -> BingoCondition {
-            switch BingoStatKey.allCases.randomElement(using: &rng)! {
-                case .kills:  return .min(stat: .kills,  value: killThresholds.randomElement(using: &rng)!)
-                case .deaths: return .min(stat: .deaths, value: deathThresholds.randomElement(using: &rng)!)
-                case .aces:   return .min(stat: .aces,   value: aceThresholds.randomElement(using: &rng)!)
-            }
-        }
-
-        return (0..<count).map { _ in BingoCell(condition: randomCondition()) }
+        let conditions = BingoBlueprints.defaultSet.generateConditions(count: count, seed: seed)
+        return conditions.map { BingoCell(condition: $0) }
     }
 
     private func drawNextCandidate() {
@@ -312,10 +427,7 @@ final class BingoViewModel: ObservableObject {
             let start = CFAbsoluteTimeGetCurrent()
             let end = start + duration
 
-            // Für den Spin zeigen wir die kompletten Namen an (lebendiger)
             let spinNamePool = self.availablePlayers.map { $0.name }
-
-            // Loop
             while CFAbsoluteTimeGetCurrent() < end && !Task.isCancelled {
                 let now = CFAbsoluteTimeGetCurrent()
                 let t = max(0.0, min(1.0, (now - start) / duration))
@@ -331,7 +443,6 @@ final class BingoViewModel: ObservableObject {
 
             guard !Task.isCancelled else { return }
 
-            // Finale Auswahl – möglichst nicht derselbe wie vorher
             let filtered: [RichPlayer]
             if let ex = exclude {
                 filtered = self.availablePlayers.filter { $0.id != ex.id }
@@ -343,11 +454,9 @@ final class BingoViewModel: ObservableObject {
             let idx = Int.random(in: 0 ..< pool.count)
             let chosen = pool[idx]
 
-            // Index im echten 'availablePlayers' nachschlagen
             if let realIdx = self.availablePlayers.firstIndex(where: { $0.id == chosen.id }) {
                 self.currentCandidateIndex = realIdx
             } else {
-                // Fallback (sollte selten vorkommen)
                 self.currentCandidateIndex = Int.random(in: 0 ..< self.availablePlayers.count)
             }
             self.currentCandidate = chosen
@@ -373,17 +482,5 @@ final class BingoViewModel: ObservableObject {
     private func easeOutCubic(_ t: Double) -> Double {
         let p = 1 - (1 - t) * (1 - t) * (1 - t)
         return p
-    }
-}
-
-// PRNG
-struct SeededGenerator: RandomNumberGenerator {
-    private var state: UInt64
-    init(seed: Int) { self.state = UInt64(bitPattern: Int64(seed)) }
-    mutating func next() -> UInt64 {
-        var x = state
-        x ^= x >> 12; x ^= x << 25; x ^= x >> 27
-        state = x
-        return x &* 2685821657736338717
     }
 }

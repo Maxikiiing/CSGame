@@ -10,10 +10,10 @@ import SwiftUI
 struct WeeklyChallengeBingoView: View {
     var body: some View {
         let cfg = BingoConfig(
-            title: "Bingo – Weekly Challenge",
+            title: "Bingo – Blueprint Test",
             rows: 4,
             cols: 4,
-            source: .weekly() // lädt aus bundle "bingo_weekly.json"
+            source: .bundle(resource: "bingo_blueprint_test")
         )
         BingoBaseView(vm: BingoViewModel(config: cfg))
             .background(Theme.bg)

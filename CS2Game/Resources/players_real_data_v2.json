@@ -159,7 +159,7 @@
   {
   "name": "Jame",
   "nation": "Russia",
-  "roles": ["AWPer"],
+  "roles": ["AWPer","IGL"],
   "teamHistory": ["Virtus.pro", "PARIVISION", "AVANGAR"],
   "birthDate": "1998-08-23",
   "eDPI": 800,
@@ -636,6 +636,7 @@
     "mapsPlayed": 763,
     "grandSlams": 0,
     "majors": 0,
+    "majorMVPs":0,
     "sTierTrophies": 6,
     "hltvMVPs":4
   }

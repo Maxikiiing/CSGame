@@ -197,7 +197,7 @@ enum Team: Equatable, Codable {
         case "nip", "ninjasinpyjamas": self = .NIP
         case "fnatic": self = .Fnatic
         case "furia", "furiaesports": self = .FURIA
-        case "complexity", "complexitygaming", "coL".lowercased(): self = .Complexity
+        case "complexity", "complexitygaming", "col": self = .Complexity
         case "og": self = .OG
         case "imperial", "imperialesports": self = .Imperial
         case "apeks": self = .Apeks
@@ -323,6 +323,7 @@ struct RichPlayer: Codable, Identifiable, Equatable {
     let majors: Int
     let sTierTrophies: Int
     let hltvMVPs: Int
+    let majorMVPs: Int   // <<< NEU
 
     // Dynamisch berechnet (immer aktuell)
     var age: Int {
@@ -342,7 +343,7 @@ struct RichPlayer: Codable, Identifiable, Equatable {
         case name, nation, roles, teamHistory
         case birthDate, eDPI
         case kills, deaths, grenade, sniper, rifle, aces, four_Ks, zero_Ks, mapsPlayed
-        case grandSlams, majors, sTierTrophies, hltvMVPs
+        case grandSlams, majors, sTierTrophies, hltvMVPs, majorMVPs
     }
 
     static let dateFormatterYYYYMMDD: DateFormatter = {
@@ -384,6 +385,7 @@ struct RichPlayer: Codable, Identifiable, Equatable {
         majors         = try c.decode(Int.self, forKey: .majors)
         sTierTrophies  = try c.decode(Int.self, forKey: .sTierTrophies)
         hltvMVPs       = try c.decode(Int.self, forKey: .hltvMVPs)
+        majorMVPs      = try c.decode(Int.self, forKey: .majorMVPs)
     }
 
     // Optional convenience init (Tests)
@@ -392,7 +394,7 @@ struct RichPlayer: Codable, Identifiable, Equatable {
         birthDate: Date, eDPI: Int,
         kills: Int, deaths: Int, grenade: Int, sniper: Int, rifle: Int,
         aces: Int, four_Ks: Int, zero_Ks: Int, mapsPlayed: Int,
-        grandSlams: Int, majors: Int, sTierTrophies: Int, hltvMVPs: Int
+        grandSlams: Int, majors: Int, sTierTrophies: Int, hltvMVPs: Int, majorMVPs: Int
     ) {
         self.name = name
         self.nation = nation
@@ -413,5 +415,6 @@ struct RichPlayer: Codable, Identifiable, Equatable {
         self.majors = majors
         self.sTierTrophies = sTierTrophies
         self.hltvMVPs = hltvMVPs
+        self.majorMVPs = majorMVPs
     }
 }
