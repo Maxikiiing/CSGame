@@ -224,6 +224,11 @@ enum BingoBlueprints {
     private static let EDPI_MIN_CHOICES         = [1_000]
     private static let EDPI_MAX_CHOICES         = [700]
 
+    // 👉 Neue Werte
+    private static let ACES_MIN_CHOICES         = [50, 60]
+    private static let FOURKS_MIN_CHOICES       = [400]
+    private static let RIFLE_MIN_CHOICES        = [25_000, 30_000]
+
     // Rollen & Paare
     private static let COMMON_ROLES: [Role] = [.Sniper, .Rifler, .IGL]
     private static let TWO_ROLE_PAIRS: [(Role, Role)] = [(.Sniper, .IGL)]
@@ -243,45 +248,18 @@ enum BingoBlueprints {
         WeightedBlueprint(bp, weight: weight)
     }
 
-    /// Per-Typ-Limits (Overrides). Nicht gelistete Typen nutzen das Default-Limit (unten).
-    /// 👉 Zum Aktivieren einfach `//` entfernen und Zahl anpassen.
     private static let LIMITS: [BingoSlotKind: Int] = [
-        // --- INT-basierte min ---
-        .min(.eDPI): 1,           // aktiv: min eDPI max 1× im Grid
-        .min(.kills): 3,          // aktiv: min Kills max 3× im Grid
-
-        // // .min(.deaths): 2,
+        .min(.eDPI): 1,
+        .min(.kills): 3,
         .min(.grandSlams): 1,
         .min(.majorMVPs): 1,
-        // // .min(.grenade): 2,
-        // // .min(.sniper): 2,
-        // // .min(.majors): 2,
-        // // .min(.sTierTrophies): 2,
         .min(.age): 1,
-        // // .min(.rolesCount): 2,
-        // // .min(.teamsCount): 2,
-
-        // --- INT-basierte max ---
-        // // .max(.deaths): 2,
-        // // .max(.sniper): 1,
-        // // .max(.age): 2,
-         .max(.eDPI): 1,
+        .max(.eDPI): 1,
         .max(.teamsCount): 1,
-
-        // --- KD ---
-        // // .kdMin: 2,
-        // // .kdMax: 1,
-
-        // --- Attribute ---
         .nationOneOf: 2,
-        // // .roleOneOf: 2,
         .rolesAllOf: 1,
-        // // .teamHistoryOneOf: 2,
     ]
 
-    /// Standard-Set mit:
-    ///  - **Gewichtung** (höher = häufiger)
-    ///  - **Limits** pro Slot-Typ (siehe LIMITS), Default sonst = 2
     static let defaultSet = BingoBlueprintSet(
         name: "default",
         weighted: [
@@ -299,6 +277,11 @@ enum BingoBlueprints {
 
             W(.min(stat: .majors,        choices: MIN_MAJORS_CHOICES),        2),
             W(.min(stat: .sTierTrophies, choices: S_TIER_TROPHY_CHOICES),     1),
+
+            // 👉 Neue Slottypen
+            W(.min(stat: .aces,          choices: ACES_MIN_CHOICES),          1),
+            W(.min(stat: .four_Ks,       choices: FOURKS_MIN_CHOICES),        1),
+            W(.min(stat: .rifle,         choices: RIFLE_MIN_CHOICES),         1),
 
             // Alter
             W(.min(stat: .age,           choices: MIN_AGE_CHOICES),           1),
