@@ -20,14 +20,17 @@ struct SeededGenerator: RandomNumberGenerator {
     }
 }
 
-// MARK: - Baukasten: Slot-Blueprints (nur die explizit gewünschten Typen)
+// MARK: - Baukasten: Slot-Blueprints (nur explizit gewünschte Typen)
 
 enum BingoSlotBlueprint {
     case min(stat: BingoStatKey, choices: [Int])
     case max(stat: BingoStatKey, choices: [Int])
     case nationOneOf([Nation])
     case roleOneOf([Role])
+    case rolesAllOf(pairs: [(Role, Role)])      // z. B. (Sniper, IGL)
     case teamHistoryOneOf([Team])
+    case kdMin(choices: [Double])
+    case kdMax(choices: [Double])
 
     func makeCondition<R: RandomNumberGenerator>(using rng: inout R) -> BingoCondition {
         switch self {
@@ -39,8 +42,15 @@ enum BingoSlotBlueprint {
             return .nation(nations.randomElement(using: &rng)!)
         case .roleOneOf(let roles):
             return .role(roles.randomElement(using: &rng)!)
+        case .rolesAllOf(let pairs):
+            let (a, b) = pairs.randomElement(using: &rng)!
+            return .rolesAllOf([a, b])
         case .teamHistoryOneOf(let teams):
             return .teamHistory(teams.randomElement(using: &rng)!)
+        case .kdMin(let choices):
+            return .kdMin(choices.randomElement(using: &rng)!)
+        case .kdMax(let choices):
+            return .kdMax(choices.randomElement(using: &rng)!)
         }
     }
 }
@@ -81,13 +91,22 @@ enum BingoBlueprints {
 
     private static let S_TIER_TROPHY_CHOICES    = [20, 23, 25]
 
-    // Rolle (einzelne spezifische Rolle)
+    private static let KD_MIN_CHOICES           = [1.10, 1.15, 1.20]
+    private static let KD_MAX_CHOICES           = [1.00]
+
+    private static let TEAMS_MIN_CHOICES        = [3, 4]
+    private static let TEAMS_MAX_CHOICES        = [1]
+
+    private static let EDPI_MIN_CHOICES         = [1_000]
+    private static let EDPI_MAX_CHOICES         = [700]
+
+    // Rollen & Paare
     private static let COMMON_ROLES: [Role] = [.Sniper, .Rifler, .IGL]
+    private static let TWO_ROLE_PAIRS: [(Role, Role)] = [(.Sniper, .IGL)]
 
     // Attribute-Pools
     private static let COMMON_NATIONS: [Nation] = [
-        .France, .UnitedKingdom, .Israel, .Denmark, .Sweden, .Germany,
-        .Poland, .Ukraine, .Russia, .Netherlands, .Belgium, .Finland
+        .France, .UnitedKingdom, .Israel, .Denmark, .Sweden, .Germany, .Ukraine, .Russia, .Finland
     ]
     private static let COMMON_TEAMS: [Team] = [
         .G2, .NAVI, .Vitality, .FaZe, .Astralis, .MOUZ, .ENCE, .Heroic, .Liquid, .Cloud9,
@@ -97,7 +116,7 @@ enum BingoBlueprints {
     static let defaultSet = BingoBlueprintSet(
         name: "default",
         blueprints: [
-            // --- Stats ---
+            // --- Stats (deine Vorgaben) ---
             .min(stat: .kills,         choices: KILL_MIN_CHOICES),
 
             .min(stat: .deaths,        choices: MIN_DEATHS_CHOICES),
@@ -116,13 +135,26 @@ enum BingoBlueprints {
             .min(stat: .age,           choices: MIN_AGE_CHOICES),
             .max(stat: .age,           choices: MAX_AGE_CHOICES),
 
-            // Rolle (konkrete) & Team-Historie & Nation
+            // Rollen
             .roleOneOf(COMMON_ROLES),
-            .teamHistoryOneOf(COMMON_TEAMS),
-            .nationOneOf(COMMON_NATIONS),
+            .rolesAllOf(pairs: TWO_ROLE_PAIRS),
+            .min(stat: .rolesCount,    choices: [2]),
 
-            // Min. Rollentypen (als Zahl via rolesCount)
-            .min(stat: .rolesCount,    choices: [2])
+            // Team-Count (Historie)
+            .min(stat: .teamsCount,    choices: TEAMS_MIN_CHOICES),
+            .max(stat: .teamsCount,    choices: TEAMS_MAX_CHOICES),
+
+            // eDPI
+            .min(stat: .eDPI,          choices: EDPI_MIN_CHOICES),
+            .max(stat: .eDPI,          choices: EDPI_MAX_CHOICES),
+
+            // KD
+            .kdMin(choices: KD_MIN_CHOICES),
+            .kdMax(choices: KD_MAX_CHOICES),
+
+            // Attribute
+            .teamHistoryOneOf(COMMON_TEAMS),
+            .nationOneOf(COMMON_NATIONS)
         ]
     )
 }

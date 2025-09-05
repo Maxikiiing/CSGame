@@ -15,7 +15,8 @@ enum BingoStatKey: String, Codable, CaseIterable {
     case grenade, sniper, rifle, four_Ks, zero_Ks, mapsPlayed
     case grandSlams, majors, sTierTrophies, hltvMVPs, majorMVPs
     case eDPI, age
-    case rolesCount   // ← NEU: Anzahl der Rollentypen
+    case rolesCount          // Anzahl Rollentypen
+    case teamsCount          // Anzahl Teams (Historie)
 
     func value(for p: RichPlayer) -> Int {
         switch self {
@@ -35,7 +36,8 @@ enum BingoStatKey: String, Codable, CaseIterable {
         case .majorMVPs:     return p.majorMVPs
         case .eDPI:          return p.eDPI
         case .age:           return p.age
-        case .rolesCount:    return p.roles.count   // ← NEU
+        case .rolesCount:    return p.roles.count
+        case .teamsCount:    return p.teamHistory.count
         }
     }
 
@@ -57,7 +59,8 @@ enum BingoStatKey: String, Codable, CaseIterable {
         case .majorMVPs: return "Major MVPs"
         case .eDPI: return "eDPI"
         case .age: return "Age"
-        case .rolesCount: return "Roles" // ← NEU
+        case .rolesCount: return "Roles"
+        case .teamsCount: return "Teams"
         }
     }
 }
@@ -75,7 +78,7 @@ private extension Role {
     }
 }
 
-// MARK: - Bedingungen (ohne CurrentTeam)
+// MARK: - Bedingungen
 
 enum BingoCondition: Codable, Equatable {
     // Int-basierte Bedingungen
@@ -88,6 +91,7 @@ enum BingoCondition: Codable, Equatable {
     case role(Role)
     case teamHistory(Team)     // jemals im Team
     case ageRange(min: Int, max: Int)
+    case rolesAllOf([Role])    // Spieler muss alle angegebenen Rollen besitzen (z. B. Sniper & IGL)
 
     // KD (Double) separat, um JSON klar zu halten
     case kdMin(Double)
@@ -112,6 +116,8 @@ enum BingoCondition: Codable, Equatable {
             return p.teamHistory.contains(t)
         case .ageRange(let lo, let hi):
             return p.age >= lo && p.age <= hi
+        case .rolesAllOf(let roles):
+            return roles.allSatisfy { p.roles.contains($0) }
 
         case .kdMin(let x):
             return p.kd >= x
@@ -122,7 +128,7 @@ enum BingoCondition: Codable, Equatable {
         }
     }
 
-    // Öffentliche, kompakte UI-Beschreibung
+    // Kompakte UI-Beschreibung
     var text: String {
         switch self {
         case .min(let stat, let v):            return "≥ \(format(v)) \(stat.displayName)"
@@ -132,6 +138,9 @@ enum BingoCondition: Codable, Equatable {
         case .role(let r):                     return "Role: \(r.displayName)"
         case .teamHistory(let t):              return "Played for: \(t.displayName)"
         case .ageRange(let lo, let hi):        return "Age: \(lo)–\(hi)"
+        case .rolesAllOf(let roles):
+            let names = roles.map { $0.displayName }.joined(separator: " + ")
+            return "Roles: \(names)"
         case .kdMin(let x):                    return String(format: "KD ≥ %.2f", x)
         case .kdMax(let x):                    return String(format: "KD ≤ %.2f", x)
         case .kdRange(let lo, let hi):         return String(format: "KD %.2f–%.2f", lo, hi)
@@ -141,11 +150,12 @@ enum BingoCondition: Codable, Equatable {
     // Codable
 
     private enum CodingKeys: String, CodingKey {
-        case kind, stat, value, min, max, nation, role, team
+        case kind, stat, value, min, max, nation, role, team, roles
     }
     private enum Kind: String, Codable {
         case min, max, range
         case nation, role, teamHistory, ageRange
+        case rolesAllOf
         case kdMin, kdMax, kdRange
     }
 
@@ -172,6 +182,8 @@ enum BingoCondition: Codable, Equatable {
         case .ageRange:
             self = .ageRange(min: try c.decode(Int.self, forKey: .min),
                              max: try c.decode(Int.self, forKey: .max))
+        case .rolesAllOf:
+            self = .rolesAllOf(try c.decode([Role].self, forKey: .roles))
 
         case .kdMin:
             self = .kdMin(try c.decode(Double.self, forKey: .value))
@@ -218,6 +230,10 @@ enum BingoCondition: Codable, Equatable {
             try c.encode(Kind.ageRange, forKey: .kind)
             try c.encode(lo, forKey: .min)
             try c.encode(hi, forKey: .max)
+
+        case .rolesAllOf(let roles):
+            try c.encode(Kind.rolesAllOf, forKey: .kind)
+            try c.encode(roles, forKey: .roles)
 
         case .kdMin(let x):
             try c.encode(Kind.kdMin, forKey: .kind)
@@ -294,10 +310,7 @@ final class BingoViewModel: ObservableObject {
 
     var displayedName: String? { isSpinning ? spinnerDisplayName : currentCandidate?.name }
 
-    // Für Button-State
-    var canReroll: Bool {
-        !isSpinning && !isInteractionLocked && !gameOver && !availablePlayers.isEmpty
-    }
+    var canReroll: Bool { !isSpinning && !isInteractionLocked && !gameOver && !availablePlayers.isEmpty }
 
     private var allPlayers: [RichPlayer] = []
     private var availablePlayers: [RichPlayer] = []
@@ -372,7 +385,6 @@ final class BingoViewModel: ObservableObject {
         currentCandidate = availablePlayers[idx]
     }
 
-    /// Spieler platzieren, wenn Bedingung erfüllt ist.
     func placeCandidate(in cellID: UUID) -> BingoPlacementOutcome {
         guard !isSpinning, !isInteractionLocked,
               let candidate = currentCandidate,
@@ -399,7 +411,6 @@ final class BingoViewModel: ObservableObject {
         }
     }
 
-    /// Nutzer will ohne Platzieren einen neuen Kandidaten ziehen (mit Spin).
     func rerollCandidate() {
         guard !isSpinning, !isInteractionLocked, !availablePlayers.isEmpty else { return }
         startSpinAndSelectNext(exclude: currentCandidate)
