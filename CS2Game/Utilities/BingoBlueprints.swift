@@ -235,12 +235,11 @@ enum BingoBlueprints {
 
     // Attribute-Pools
     private static let COMMON_NATIONS: [Nation] = [
-        .France, .UnitedKingdom, .Israel, .Denmark, .Sweden, .Germany,
-        .Poland, .Ukraine, .Russia, .Netherlands, .Belgium, .Finland
+        .France, .UnitedKingdom, .Israel, .Denmark, .Sweden, .Ukraine, .Russia, .Finland, .Mongolia, .Russia, .BosniaAndHerzegovina, .Canada, .Slovakia
     ]
     private static let COMMON_TEAMS: [Team] = [
         .G2, .NAVI, .Vitality, .FaZe, .Astralis, .MOUZ, .ENCE, .Heroic, .Liquid, .Cloud9,
-        .VirtusPro, .NIP, .Fnatic, .FURIA, .Complexity, .Spirit, .BIG
+        .VirtusPro, .NIP, .Fnatic, .FURIA, .Complexity, .Spirit, .MongolZ, .Falcons, .NIP
     ]
 
     /// Hilfs-Shortcut

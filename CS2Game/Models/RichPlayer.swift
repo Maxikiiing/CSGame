@@ -64,7 +64,7 @@ enum Nation: Equatable, Codable {
     case Czechia, Slovakia, Hungary, Romania, Bulgaria, Serbia, Croatia, BosniaAndHerzegovina, Slovenia, Greece, Turkey
     case Israel
     case USA, Canada, Brazil, Argentina, Chile, Mexico
-    case Australia
+    case Australia, Mongolia
     case other(String)
 
     init(from decoder: Decoder) throws {
@@ -114,8 +114,11 @@ enum Nation: Equatable, Codable {
         case "mexico": self = .Mexico
         // Ozeanien
         case "australia": self = .Australia
+        // Asia
+        case "mongolia": self = .Mongolia
         default:
             self = .other(raw)
+
         }
     }
 
@@ -166,6 +169,7 @@ enum Nation: Equatable, Codable {
         case .Chile: return "Chile"
         case .Mexico: return "Mexico"
         case .Australia: return "Australia"
+        case .Mongolia: return "Mongolia"
         case .other(let s): return s
         }
     }
@@ -177,7 +181,8 @@ enum Team: Equatable, Codable {
     case G2, NAVI, Vitality, FaZe, Astralis, MOUZ, ENCE, Heroic, Liquid, Cloud9
     case VirtusPro, NIP, Fnatic, FURIA, Complexity, OG, Imperial, Apeks, Falcons, Monte
     case Spirit, BIG, GamerLegion,  NineINE, BNE, Endpoint
-    case PARAVISION, AVANGAR, DRILLAS, MADLions, PASSIONUA, Gambit, IntoTheBreach, Epsilon, MovistarRiders, TSM, Titan, LDLC, Luminosity, SK, MIBR, REDCanids, ZeroZeroNation, ATK, Dignitas, Envy
+    case PARAVISION, AVANGAR, DRILLAS, MADLions, PASSIONUA, Gambit, IntoTheBreach, Epsilon, MovistarRiders, TSM, Titan, LDLC, Luminosity, SK, MIBR, REDCanids, ZeroZeroNation, ATK, Dignitas, Envy, MongolZ
+    case VegaSquadron, Nemiga, IHC, Checkmate, HAVU, Nexus, CopenhagenWolves
     case other(String)
 
     init(from decoder: Decoder) throws {
@@ -229,6 +234,14 @@ enum Team: Equatable, Codable {
         case "atk": self = .ATK
         case "dignitas", "teamdignitas": self = .Dignitas
         case "envy", "envyus", "teamenvyus": self = .Envy
+        case "mongolz", "teammongolz": self = .MongolZ
+        case "vegasquadron": self = .VegaSquadron
+        case "nemiga": self = .Nemiga
+        case "ihc": self = .IHC
+        case "checkmate": self = .Checkmate
+        case "havu": self = .HAVU
+        case "nexus": self = .Nexus
+        case "copenhagenwolves" : self = .CopenhagenWolves
         default:
             self = .other(raw)
         }
@@ -287,6 +300,14 @@ enum Team: Equatable, Codable {
         case .ATK: return "ATK"
         case .Dignitas: return "Dignitas"
         case .Envy: return "Envy"
+        case .MongolZ: return "MongolZ"
+        case .VegaSquadron: return "Vega Squadron"
+        case .Nemiga: return "nemiga"
+        case .IHC: return "IHC"
+        case .Checkmate: return "Checkmate"
+        case .HAVU: return "HAVU"
+        case .Nexus: return "Nexus"
+        case .CopenhagenWolves: return "Copenhagen Wolves"
         case .other(let s): return s
         }
     }
