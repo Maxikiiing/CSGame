@@ -157,7 +157,7 @@ enum Nation: Equatable, Codable {
         case .Bulgaria: return "Bulgaria"
         case .Serbia: return "Serbia"
         case .Croatia: return "Croatia"
-        case .BosniaAndHerzegovina: return "Bosnia and Herzegovina"
+        case .BosniaAndHerzegovina: return "Bosnia"
         case .Slovenia: return "Slovenia"
         case .Greece: return "Greece"
         case .Turkey: return "Turkey"

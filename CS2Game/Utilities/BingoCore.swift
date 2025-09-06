@@ -15,8 +15,8 @@ enum BingoStatKey: String, Codable, CaseIterable {
     case grenade, sniper, rifle, four_Ks, zero_Ks, mapsPlayed
     case grandSlams, majors, sTierTrophies, hltvMVPs, majorMVPs
     case eDPI, age
-    case rolesCount          // Anzahl Rollentypen
-    case teamsCount          // Anzahl Teams (Historie)
+    case rolesCount
+    case teamsCount
 
     func value(for p: RichPlayer) -> Int {
         switch self {
@@ -78,6 +78,28 @@ private extension Role {
     }
 }
 
+// MARK: - Flaggen-Emoji für Nationen
+
+extension Nation {
+    var flagEmoji: String {
+        switch self {
+        case .France:                   return "🇫🇷"
+        case .UnitedKingdom:            return "🇬🇧"
+        case .Israel:                   return "🇮🇱"
+        case .Denmark:                  return "🇩🇰"
+        case .Sweden:                   return "🇸🇪"
+        case .Ukraine:                  return "🇺🇦"
+        case .Russia:                   return "🇷🇺"
+        case .Finland:                  return "🇫🇮"
+        case .Mongolia:                 return "🇲🇳"
+        case .BosniaAndHerzegovina:     return "🇧🇦"
+        case .Canada:                   return "🇨🇦"
+        case .Slovakia:                 return "🇸🇰"
+        default:                        return "🏳️"
+        }
+    }
+}
+
 // MARK: - Bedingungen
 
 enum BingoCondition: Codable, Equatable {
@@ -89,11 +111,11 @@ enum BingoCondition: Codable, Equatable {
     // Attribute
     case nation(Nation)
     case role(Role)
-    case teamHistory(Team)     // jemals im Team
+    case teamHistory(Team)
     case ageRange(min: Int, max: Int)
-    case rolesAllOf([Role])    // Spieler muss alle angegebenen Rollen besitzen (z. B. Sniper & IGL)
+    case rolesAllOf([Role])
 
-    // KD (Double) separat, um JSON klar zu halten
+    // KD
     case kdMin(Double)
     case kdMax(Double)
     case kdRange(min: Double, max: Double)
@@ -128,13 +150,13 @@ enum BingoCondition: Codable, Equatable {
         }
     }
 
-    // Kompakte UI-Beschreibung
+    // Kompakte UI-Beschreibung (Plain Text)
     var text: String {
         switch self {
         case .min(let stat, let v):            return "≥ \(format(v)) \(stat.displayName)"
         case .max(let stat, let v):            return "≤ \(format(v)) \(stat.displayName)"
         case .range(let stat, let lo, let hi): return "\(format(lo))–\(format(hi)) \(stat.displayName)"
-        case .nation(let n):                   return "Nation: \(n.displayName)"
+        case .nation(let n):                   return n.displayName
         case .role(let r):                     return "Role: \(r.displayName)"
         case .teamHistory(let t):              return "Played for: \(t.displayName)"
         case .ageRange(let lo, let hi):        return "Age: \(lo)–\(hi)"
@@ -147,8 +169,48 @@ enum BingoCondition: Codable, Equatable {
         }
     }
 
-    // Codable
+    // Attributed UI-Beschreibung mit klein & fett hervorgehobenen Variablen
+    var attributedText: AttributedString {
+        var result = AttributedString(text)
 
+        func bold(_ substring: String) {
+            if let r = result.range(of: substring) {
+                var container = AttributeContainer()
+                container.font = .caption2.bold()   // klein & fett
+                result[r].setAttributes(container)
+            }
+        }
+
+        switch self {
+        case .min(_, let v):
+            bold("≥ \(format(v))")
+        case .max(_, let v):
+            bold("≤ \(format(v))")
+        case .range(_, let lo, let hi):
+            bold("\(format(lo))–\(format(hi))")
+        case .nation(let n):
+            bold(n.displayName)
+        case .role(let r):
+            bold(r.displayName)
+        case .teamHistory(let t):
+            bold(t.displayName)
+        case .ageRange(let lo, let hi):
+            bold("\(lo)–\(hi)")
+        case .rolesAllOf(let roles):
+            let names = roles.map { $0.displayName }.joined(separator: " + ")
+            bold(names)
+        case .kdMin(let x):
+            bold(String(format: "≥ %.2f", x))
+        case .kdMax(let x):
+            bold(String(format: "≤ %.2f", x))
+        case .kdRange(let lo, let hi):
+            bold(String(format: "%.2f–%.2f", lo, hi))
+        }
+
+        return result
+    }
+
+    // Codable
     private enum CodingKeys: String, CodingKey {
         case kind, stat, value, min, max, nation, role, team, roles
     }
@@ -172,7 +234,6 @@ enum BingoCondition: Codable, Equatable {
             self = .range(stat: try c.decode(BingoStatKey.self, forKey: .stat),
                           min: try c.decode(Int.self, forKey: .min),
                           max: try c.decode(Int.self, forKey: .max))
-
         case .nation:
             self = .nation(try c.decode(Nation.self, forKey: .nation))
         case .role:
@@ -184,7 +245,6 @@ enum BingoCondition: Codable, Equatable {
                              max: try c.decode(Int.self, forKey: .max))
         case .rolesAllOf:
             self = .rolesAllOf(try c.decode([Role].self, forKey: .roles))
-
         case .kdMin:
             self = .kdMin(try c.decode(Double.self, forKey: .value))
         case .kdMax:
@@ -202,52 +262,56 @@ enum BingoCondition: Codable, Equatable {
             try c.encode(Kind.min, forKey: .kind)
             try c.encode(s, forKey: .stat)
             try c.encode(v, forKey: .value)
-
         case .max(let s, let v):
             try c.encode(Kind.max, forKey: .kind)
             try c.encode(s, forKey: .stat)
             try c.encode(v, forKey: .value)
-
         case .range(let s, let lo, let hi):
             try c.encode(Kind.range, forKey: .kind)
             try c.encode(s, forKey: .stat)
             try c.encode(lo, forKey: .min)
             try c.encode(hi, forKey: .max)
-
         case .nation(let n):
             try c.encode(Kind.nation, forKey: .kind)
             try c.encode(n, forKey: .nation)
-
         case .role(let r):
             try c.encode(Kind.role, forKey: .kind)
             try c.encode(r, forKey: .role)
-
         case .teamHistory(let t):
             try c.encode(Kind.teamHistory, forKey: .kind)
             try c.encode(t, forKey: .team)
-
         case .ageRange(let lo, let hi):
             try c.encode(Kind.ageRange, forKey: .kind)
             try c.encode(lo, forKey: .min)
             try c.encode(hi, forKey: .max)
-
         case .rolesAllOf(let roles):
             try c.encode(Kind.rolesAllOf, forKey: .kind)
             try c.encode(roles, forKey: .roles)
-
         case .kdMin(let x):
             try c.encode(Kind.kdMin, forKey: .kind)
             try c.encode(x, forKey: .value)
-
         case .kdMax(let x):
             try c.encode(Kind.kdMax, forKey: .kind)
             try c.encode(x, forKey: .value)
-
         case .kdRange(let lo, let hi):
             try c.encode(Kind.kdRange, forKey: .kind)
             try c.encode(lo, forKey: .min)
             try c.encode(hi, forKey: .max)
         }
+    }
+}
+
+// MARK: - Helpers für UI (Nationserkennung)
+
+extension BingoCondition {
+    var isNationSlot: Bool {
+        if case .nation = self { return true }
+        return false
+    }
+
+    var nationFlag: String? {
+        if case .nation(let n) = self { return n.flagEmoji }
+        return nil
     }
 }
 
@@ -316,7 +380,7 @@ final class BingoViewModel: ObservableObject {
     private var currentCandidateIndex: Int?
     private var spinTask: Task<Void, Never>?
 
-    // MARK: - Timer/Leaderboard (NEU)
+    // Timer/Leaderboard
     @Published var elapsed: TimeInterval = 0
     @Published var isTimerRunning: Bool = false
     private var timerCancellable: AnyCancellable?
@@ -338,7 +402,7 @@ final class BingoViewModel: ObservableObject {
         currentCandidateIndex = nil
         dataError = nil
 
-        // Timer reset (NEU)
+        // Timer reset
         resetTimer()
 
         let pool = RichDataLoader.shared.loadRichPlayers()
@@ -403,7 +467,6 @@ final class BingoViewModel: ObservableObject {
 
         let cond = cells[i].condition
         if cond.matches(candidate) {
-            // Start timer on first successful placement (NEU)
             if !hasPlacedFirst {
                 startTimer()
                 hasPlacedFirst = true
@@ -416,7 +479,6 @@ final class BingoViewModel: ObservableObject {
 
             if cells.allSatisfy({ $0.player != nil }) {
                 gameOver = true
-                // Stop + save to leaderboard (NEU)
                 stopTimer()
                 saveLeaderboard()
                 return .completed
@@ -434,7 +496,7 @@ final class BingoViewModel: ObservableObject {
         startSpinAndSelectNext(exclude: currentCandidate)
     }
 
-    // MARK: - Spin (unchanged)
+    // Spin
     private func startSpinAndSelectNext(duration: Double = 2.2, postLock: Double = 0.2, exclude: RichPlayer? = nil) {
         cancelSpin()
         guard !availablePlayers.isEmpty else {
@@ -512,7 +574,7 @@ final class BingoViewModel: ObservableObject {
         return p
     }
 
-    // MARK: - Timer/Leaderboard helpers (NEU)
+    // Timer/Leaderboard helpers
 
     private func resetTimer() {
         isTimerRunning = false
@@ -559,7 +621,6 @@ final class BingoViewModel: ObservableObject {
         case .bundle(let res):
             return "bundle:\(res)|\(size)"
         case .remote(let url):
-            // nutze Dateiname, damit Weekly/Monthly unterscheidbar sind
             let name = url.lastPathComponent
             if url.absoluteString.contains("/weekly/") {
                 return "weekly:\(name)|\(size)"

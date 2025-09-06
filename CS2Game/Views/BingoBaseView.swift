@@ -19,7 +19,7 @@ struct BingoBaseView: View {
                 VStack(spacing: 14) {
                     HeaderSection(title: vm.config.title)
 
-                    // Progress + Timer nebeneinander (NEU)
+                    // Progress + Timer nebeneinander
                     ProgressWithTimerSection(
                         filled: vm.cells.filter { $0.player != nil }.count,
                         total: vm.cells.count,
@@ -37,7 +37,7 @@ struct BingoBaseView: View {
                         onNewBoard: { vm.startNewBoard() },
                         onNewPlayer: { vm.rerollCandidate() },
                         isNewPlayerEnabled: vm.canReroll,
-                        // Leaderboard (NEU)
+                        // Leaderboard
                         modeKey: vm.modeKey(),
                         modeTitle: vm.config.title
                     )
@@ -97,7 +97,7 @@ private struct HeaderSection: View {
     }
 }
 
-// NEU: Progress + Timer
+// Progress + Timer
 private struct ProgressWithTimerSection: View {
     let filled: Int
     let total: Int
@@ -109,7 +109,7 @@ private struct ProgressWithTimerSection: View {
             Text("Filled: \(filled) / \(total)")
                 .font(.caption)
                 .foregroundStyle(Theme.ctBlueDim)
-                .padding(.leading, 6) // „etwas nach rechts verschoben“
+                .padding(.leading, 6)
 
             Spacer(minLength: 8)
 
@@ -195,18 +195,19 @@ private struct ControlsSection: View {
     let onNewPlayer: () -> Void
     let isNewPlayerEnabled: Bool
 
-    // NEU: Leaderboard Navigation
+    // Leaderboard Navigation
     let modeKey: String
     let modeTitle: String
 
     var body: some View {
         VStack(spacing: 12) {
+            // Obere Zeile: New Board (links) und New Player (rechts)
             HStack(spacing: 12) {
                 Button(action: onNewBoard) {
                     Text("New Board")
                         .font(.headline)
                         .foregroundStyle(Theme.tYellow)
-                        .frame(maxWidth: 160)
+                        .frame(maxWidth: .infinity)
                         .padding(.vertical, 10)
                         .background(Theme.tYellowBG)
                         .overlay(
@@ -221,7 +222,7 @@ private struct ControlsSection: View {
                     Text("New Player")
                         .font(.headline)
                         .foregroundStyle(Theme.ctBlue)
-                        .frame(maxWidth: 160)
+                        .frame(maxWidth: .infinity)
                         .padding(.vertical, 10)
                         .background(Theme.cardBG)
                         .overlay(
@@ -232,12 +233,10 @@ private struct ControlsSection: View {
                 }
                 .buttonStyle(.plain)
                 .disabled(!isNewPlayerEnabled)
-
-                Spacer()
             }
-            .frame(maxWidth: 360)
+            .frame(maxWidth: 360) // gleiche Breite wie Leaderboard
 
-            // Leaderboard Button unten (NEU)
+            // Leaderboard-Button unten
             NavigationLink {
                 BingoLeaderboardView(modeKey: modeKey, title: "Best Tries")
                     .toolbarBackground(Theme.bg, for: .navigationBar)
@@ -264,7 +263,7 @@ private struct ControlsSection: View {
     }
 }
 
-// MARK: - Cell & Shared Cards (unverändert)
+// MARK: - Cell & Shared Cards
 
 private struct BingoCellView: View {
     let cell: BingoCell
@@ -279,8 +278,9 @@ private struct BingoCellView: View {
                         .stroke(cell.player == nil ? Theme.slotStrokeEmpty : Theme.slotStrokeFilled, lineWidth: 2)
                 )
 
-            VStack(spacing: 6) {
+            VStack(spacing: 4) {
                 if let p = cell.player {
+                    // Spielername (wie gehabt)
                     Text(p.name)
                         .font(.caption)
                         .bold()
@@ -289,17 +289,32 @@ private struct BingoCellView: View {
                         .multilineTextAlignment(.center)
                         .minimumScaleFactor(0.75)
                         .padding(.horizontal, 6)
+                } else if cell.condition.isNationSlot,
+                          let flag = cell.condition.nationFlag {
+                    // Flagge + Ländername
+                    VStack(spacing: 2) {
+                        Text(flag)
+                            .font(.system(size: min(size.width, size.height) * 0.40)) // 40% der Zellkante
+                            .lineLimit(1)
+                        Text(cell.condition.attributedText) // Ländername fett
+                            .font(.caption2)
+                            .foregroundStyle(Theme.ctBlueDim)
+                            .lineLimit(1)
+                            .minimumScaleFactor(0.7)
+                    }
+                    .padding(.horizontal, 4)
                 } else {
-                    Text(cell.condition.text)
+                    // Default: kompakter (teilweise fetter) Text für andere Bedingungen
+                    Text(cell.condition.attributedText)
+                        .multilineTextAlignment(.center)
                         .font(.caption2)
                         .foregroundStyle(Theme.ctBlueDim)
                         .lineLimit(3)
-                        .multilineTextAlignment(.center)
                         .minimumScaleFactor(0.75)
                         .padding(.horizontal, 6)
                 }
             }
-            .padding(.vertical, 8)
+            .padding(.vertical, 6)
         }
         .frame(width: size.width, height: size.height)
     }
