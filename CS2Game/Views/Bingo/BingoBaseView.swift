@@ -19,7 +19,7 @@ struct BingoBaseView: View {
                 VStack(spacing: 14) {
                     HeaderSection(title: vm.config.title)
 
-                    // Progress + Timer nebeneinander
+                    // Progress + Timer
                     ProgressWithTimerSection(
                         filled: vm.cells.filter { $0.player != nil }.count,
                         total: vm.cells.count,
@@ -37,7 +37,6 @@ struct BingoBaseView: View {
                         onNewBoard: { vm.startNewBoard() },
                         onNewPlayer: { vm.rerollCandidate() },
                         isNewPlayerEnabled: vm.canReroll,
-                        // Leaderboard
                         modeKey: vm.modeKey(),
                         modeTitle: vm.config.title
                     )
@@ -53,7 +52,6 @@ struct BingoBaseView: View {
 }
 
 // MARK: - Layout Metrics
-
 private struct LayoutMetrics {
     let safeW: CGFloat
     let boardMaxWidth: CGFloat
@@ -86,7 +84,6 @@ private struct LayoutMetrics {
 }
 
 // MARK: - Sections
-
 private struct HeaderSection: View {
     let title: String
     var body: some View {
@@ -97,7 +94,6 @@ private struct HeaderSection: View {
     }
 }
 
-// Progress + Timer
 private struct ProgressWithTimerSection: View {
     let filled: Int
     let total: Int
@@ -145,14 +141,10 @@ private struct BoardGridSection: View {
                 Button {
                     let outcome = vm.placeCandidate(in: cell.id)
                     switch outcome {
-                    case .placed:
-                        Haptics.tap()
-                    case .completed:
-                        Haptics.success()
-                    case .rejected:
-                        Haptics.error()
-                    case .ignored:
-                        break
+                    case .placed:    Haptics.tap()
+                    case .completed: Haptics.success()
+                    case .rejected:  Haptics.error()
+                    case .ignored:   break
                     }
                 } label: {
                     BingoCellView(cell: cell, size: metrics.cellSize)
@@ -201,7 +193,7 @@ private struct ControlsSection: View {
 
     var body: some View {
         VStack(spacing: 12) {
-            // Obere Zeile: New Board (links) und New Player (rechts)
+            // Zwei Buttons oben → beide füllen die gleiche Breite (links/rechts bündig mit Leaderboard)
             HStack(spacing: 12) {
                 Button(action: onNewBoard) {
                     Text("New Board")
@@ -234,9 +226,9 @@ private struct ControlsSection: View {
                 .buttonStyle(.plain)
                 .disabled(!isNewPlayerEnabled)
             }
-            .frame(maxWidth: 360) // gleiche Breite wie Leaderboard
+            .frame(maxWidth: 360)
 
-            // Leaderboard-Button unten
+            // Leaderboard-Button
             NavigationLink {
                 BingoLeaderboardView(modeKey: modeKey, title: "Best Tries")
                     .toolbarBackground(Theme.bg, for: .navigationBar)
@@ -264,7 +256,6 @@ private struct ControlsSection: View {
 }
 
 // MARK: - Cell & Shared Cards
-
 private struct BingoCellView: View {
     let cell: BingoCell
     let size: CGSize
@@ -280,7 +271,6 @@ private struct BingoCellView: View {
 
             VStack(spacing: 4) {
                 if let p = cell.player {
-                    // Spielername (wie gehabt)
                     Text(p.name)
                         .font(.caption)
                         .bold()
@@ -289,28 +279,45 @@ private struct BingoCellView: View {
                         .multilineTextAlignment(.center)
                         .minimumScaleFactor(0.75)
                         .padding(.horizontal, 6)
+
                 } else if cell.condition.isNationSlot,
                           let flag = cell.condition.nationFlag {
-                    // Flagge + Ländername
                     VStack(spacing: 2) {
                         Text(flag)
-                            .font(.system(size: min(size.width, size.height) * 0.40)) // 40% der Zellkante
+                            .font(.system(size: min(size.width, size.height) * 0.40))
                             .lineLimit(1)
-                        Text(cell.condition.attributedText) // Ländername fett
-                            .font(.caption2)
+                        Text(cell.condition.inlineEmphasizedText)
                             .foregroundStyle(Theme.ctBlueDim)
                             .lineLimit(1)
                             .minimumScaleFactor(0.7)
+                            .multilineTextAlignment(.center)
                     }
                     .padding(.horizontal, 4)
+
+                } else if let twoLine = cell.condition.emphasizedTwoLineParts {
+                    VStack(spacing: 2) {
+                        Text(twoLine.primary)
+                            .font(.footnote).bold()
+                            .foregroundStyle(Theme.ctBlue)
+                            .lineLimit(1)
+                            .minimumScaleFactor(0.7)
+
+                        Text(twoLine.secondary)
+                            .font(.caption2)
+                            .foregroundStyle(Theme.ctBlueDim)
+                            .lineLimit(2)
+                            .minimumScaleFactor(0.75)
+                            .multilineTextAlignment(.center)
+                    }
+                    .padding(.horizontal, 4)
+
                 } else {
-                    // Default: kompakter (teilweise fetter) Text für andere Bedingungen
-                    Text(cell.condition.attributedText)
-                        .multilineTextAlignment(.center)
-                        .font(.caption2)
+                    // Inline-Variante mit leicht größerem, semibold gesetztem variablen Teil
+                    Text(cell.condition.inlineEmphasizedText)
                         .foregroundStyle(Theme.ctBlueDim)
                         .lineLimit(3)
                         .minimumScaleFactor(0.75)
+                        .multilineTextAlignment(.center)
                         .padding(.horizontal, 6)
                 }
             }

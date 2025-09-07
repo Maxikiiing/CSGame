@@ -52,6 +52,18 @@ enum Role: Equatable, Codable {
         }
     }
 }
+// MARK: - Role Display
+extension Role {
+    var displayName: String {
+        switch self {
+        case .IGL:               return "IGL"
+        case .Rifler:            return "Rifler"
+        case .Sniper:            return "Sniper"
+        case .other(let custom): return custom
+        }
+    }
+}
+
 
 // MARK: - Nation
 
@@ -171,6 +183,27 @@ enum Nation: Equatable, Codable {
         case .Australia: return "Australia"
         case .Mongolia: return "Mongolia"
         case .other(let s): return s
+        }
+    }
+}
+// MARK: - Nation → Flag Emoji
+extension Nation {
+    var flagEmoji: String {
+        switch self {
+        case .France:               return "🇫🇷"
+        case .UnitedKingdom:        return "🇬🇧"
+        case .Israel:               return "🇮🇱"
+        case .Denmark:              return "🇩🇰"
+        case .Sweden:               return "🇸🇪"
+        case .Ukraine:              return "🇺🇦"
+        case .Russia:               return "🇷🇺"
+        case .Finland:              return "🇫🇮"
+        case .Mongolia:             return "🇲🇳"
+        case .BosniaAndHerzegovina: return "🇧🇦"
+        case .Canada:               return "🇨🇦"
+        case .Slovakia:             return "🇸🇰"
+        // Weitere Nationen hier ergänzen …
+        default:                    return "🏳️"
         }
     }
 }
