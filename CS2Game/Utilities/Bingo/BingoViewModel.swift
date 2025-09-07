@@ -35,6 +35,10 @@ final class BingoViewModel: ObservableObject {
     private var startDate: Date?
     private var hasPlacedFirst: Bool = false
 
+    // Einheitliche Fehlermeldung
+    private static let genericErrorMessage =
+        "Oops! Looks like, something went wrong. Make sure you have a connection to the internet or try again later!"
+
     init(config: BingoConfig) {
         self.config = config
         startNewBoard()
@@ -48,8 +52,9 @@ final class BingoViewModel: ObservableObject {
         spinnerDisplayName = nil
         currentCandidate = nil
         currentCandidateIndex = nil
-        dataError = nil
 
+        // Reset Fehler & Timer
+        dataError = nil
         resetTimer()
 
         let pool = RichDataLoader.shared.loadRichPlayers()
@@ -64,27 +69,102 @@ final class BingoViewModel: ObservableObject {
         Task { @MainActor in
             switch config.source {
             case .random:
+                // Random ist weiterhin möglich, da hier kein Remote-Fehlerkonzept greift.
                 self.cells = Self.generateRandomBoard(rows: config.rows, cols: config.cols)
+
             case .seeded(let seed):
                 self.cells = Self.generateRandomBoard(rows: config.rows, cols: config.cols, seed: seed)
+
             case .remote(let url):
                 if let remote = await BingoLoader.shared.fetchBoard(from: url),
                    remote.rows == config.rows, remote.cols == config.cols {
                     self.cells = remote.cells.map { BingoCell(condition: $0) }
                 } else {
-                    self.cells = Self.generateRandomBoard(rows: config.rows, cols: config.cols)
+                    // ❗️Kein Random-Fallback → stattdessen Fehlermeldung
+                    self.cells = []
+                    self.dataError = Self.genericErrorMessage
                 }
+
             case .bundle(let res):
                 if let local = BingoLoader.shared.loadLocal(named: res),
                    local.rows == config.rows, local.cols == config.cols {
                     self.cells = local.cells.map { BingoCell(condition: $0) }
                 } else {
+                    // Wenn du hier auch KEIN Random willst, ersetze die nächste Zeile durch die Fehlermeldung wie oben.
                     self.cells = Self.generateRandomBoard(rows: config.rows, cols: config.cols)
                 }
             }
 
-            drawNextCandidate()
+            // Nur Kandidaten ziehen, wenn kein Fehler vorliegt
+            if self.dataError == nil {
+                self.resetToExistingBoard() // setzt Timer/Kandidat neu und leert Platzierungen
+            } else {
+                self.currentCandidate = nil
+                self.currentCandidateIndex = nil
+            }
         }
+    }
+
+    /// „Try Again“ Verhalten:
+    /// - Bei vorhandenem `dataError`: Board je nach Source erneut laden (Remote/Bundle), KEIN Random-Fallback.
+    /// - Ohne `dataError`: dieselbe Board-Konfiguration neu starten (Platzierungen leeren, Timer resetten), KEIN neues Grid.
+    func tryAgain() {
+        cancelSpin()
+        gameOver = false
+        isSpinning = false
+        isInteractionLocked = false
+        spinnerDisplayName = nil
+        currentCandidate = nil
+        currentCandidateIndex = nil
+
+        if dataError != nil {
+            // Erneuter Ladeversuch für dasselbe Board (je nach Quelle)
+            dataError = nil
+            Task { @MainActor in
+                switch config.source {
+                case .remote(let url):
+                    if let remote = await BingoLoader.shared.fetchBoard(from: url),
+                       remote.rows == config.rows, remote.cols == config.cols {
+                        self.cells = remote.cells.map { BingoCell(condition: $0) }
+                        self.resetToExistingBoard()
+                    } else {
+                        self.cells = []
+                        self.dataError = Self.genericErrorMessage
+                    }
+
+                case .bundle(let res):
+                    if let local = BingoLoader.shared.loadLocal(named: res),
+                       local.rows == config.rows, local.cols == config.cols {
+                        self.cells = local.cells.map { BingoCell(condition: $0) }
+                        self.resetToExistingBoard()
+                    } else {
+                        self.cells = []
+                        self.dataError = Self.genericErrorMessage
+                    }
+
+                case .random, .seeded:
+                    // Fehlerfall hier unwahrscheinlich – starte einfach neu mit derselben Konfiguration
+                    self.resetToExistingBoard()
+                }
+            }
+        } else {
+            // Kein Fehler: einfach dasselbe Board von vorne spielen
+            resetToExistingBoard()
+        }
+    }
+
+    /// Startet dasselbe Board neu: Platzierungen löschen, Timer zurücksetzen, Spielerpool auffüllen und neuen Kandidaten ziehen.
+    private func resetToExistingBoard() {
+        // Platzierungen leeren (Zellen behalten ihre Bedingungen!)
+        for i in cells.indices {
+            cells[i].player = nil
+        }
+        // Spielerpool zurücksetzen
+        availablePlayers = allPlayers
+        // Timer & Status
+        resetTimer()
+        // Neuen Kandidaten ziehen
+        drawNextCandidate()
     }
 
     static func generateRandomBoard(rows: Int, cols: Int, seed: Int? = nil) -> [BingoCell] {
@@ -106,6 +186,7 @@ final class BingoViewModel: ObservableObject {
 
     func placeCandidate(in cellID: UUID) -> BingoPlacementOutcome {
         guard !isSpinning, !isInteractionLocked,
+              dataError == nil, // bei Fehler keine Interaktion
               let candidate = currentCandidate,
               let cIdx = currentCandidateIndex,
               let i = cells.firstIndex(where: { $0.id == cellID && $0.player == nil })
@@ -138,13 +219,13 @@ final class BingoViewModel: ObservableObject {
     }
 
     func rerollCandidate() {
-        guard !isSpinning, !isInteractionLocked, !availablePlayers.isEmpty else { return }
+        guard !isSpinning, !isInteractionLocked, dataError == nil, !availablePlayers.isEmpty else { return }
         startSpinAndSelectNext(exclude: currentCandidate)
     }
 
     private func startSpinAndSelectNext(duration: Double = 2.2, postLock: Double = 0.2, exclude: RichPlayer? = nil) {
         cancelSpin()
-        guard !availablePlayers.isEmpty else {
+        guard dataError == nil, !availablePlayers.isEmpty else {
             spinnerDisplayName = nil
             isSpinning = false
             isInteractionLocked = false

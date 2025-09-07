@@ -27,16 +27,23 @@ struct BingoBaseView: View {
                         isRunning: vm.isTimerRunning
                     )
 
-                    BoardGridSection(vm: vm, metrics: metrics)
+                    if let err = vm.dataError {
+                        // Fehlermeldung statt Grid/NameCard
+                        ErrorMessageCard(message: err)
+                            .frame(maxWidth: 360)
+                            .padding(.top, 6)
+                    } else {
+                        BoardGridSection(vm: vm, metrics: metrics)
 
-                    NameCardSection(name: vm.displayedName,
-                                    isSpinning: vm.isSpinning,
-                                    height: metrics.cardHeight)
+                        NameCardSection(name: vm.displayedName,
+                                        isSpinning: vm.isSpinning,
+                                        height: metrics.cardHeight)
+                    }
 
                     ControlsSection(
-                        onNewBoard: { vm.startNewBoard() },
+                        onTryAgain: { vm.tryAgain() },
                         onNewPlayer: { vm.rerollCandidate() },
-                        isNewPlayerEnabled: vm.canReroll,
+                        isNewPlayerEnabled: vm.canReroll && vm.dataError == nil,
                         modeKey: vm.modeKey(),
                         modeTitle: vm.config.title
                     )
@@ -52,6 +59,7 @@ struct BingoBaseView: View {
 }
 
 // MARK: - Layout Metrics
+
 private struct LayoutMetrics {
     let safeW: CGFloat
     let boardMaxWidth: CGFloat
@@ -84,6 +92,7 @@ private struct LayoutMetrics {
 }
 
 // MARK: - Sections
+
 private struct HeaderSection: View {
     let title: String
     var body: some View {
@@ -183,7 +192,7 @@ private struct NameCardSection: View {
 }
 
 private struct ControlsSection: View {
-    let onNewBoard: () -> Void
+    let onTryAgain: () -> Void
     let onNewPlayer: () -> Void
     let isNewPlayerEnabled: Bool
 
@@ -193,10 +202,10 @@ private struct ControlsSection: View {
 
     var body: some View {
         VStack(spacing: 12) {
-            // Zwei Buttons oben → beide füllen die gleiche Breite (links/rechts bündig mit Leaderboard)
+            // Linker Button: "Try Again" – startet dasselbe Board neu oder versucht Remote erneut zu laden
             HStack(spacing: 12) {
-                Button(action: onNewBoard) {
-                    Text("New Board")
+                Button(action: onTryAgain) {
+                    Text("Try Again")
                         .font(.headline)
                         .foregroundStyle(Theme.tYellow)
                         .frame(maxWidth: .infinity)
@@ -228,7 +237,6 @@ private struct ControlsSection: View {
             }
             .frame(maxWidth: 360)
 
-            // Leaderboard-Button
             NavigationLink {
                 BingoLeaderboardView(modeKey: modeKey, title: "Best Tries")
                     .toolbarBackground(Theme.bg, for: .navigationBar)
@@ -256,6 +264,7 @@ private struct ControlsSection: View {
 }
 
 // MARK: - Cell & Shared Cards
+
 private struct BingoCellView: View {
     let cell: BingoCell
     let size: CGSize
@@ -312,7 +321,6 @@ private struct BingoCellView: View {
                     .padding(.horizontal, 4)
 
                 } else {
-                    // Inline-Variante mit leicht größerem, semibold gesetztem variablen Teil
                     Text(cell.condition.inlineEmphasizedText)
                         .foregroundStyle(Theme.ctBlueDim)
                         .lineLimit(3)
@@ -372,6 +380,28 @@ private struct EmptyHintCard: View {
         .frame(maxWidth: .infinity)
         .padding(10)
         .background(Theme.cardBG)
+        .clipShape(RoundedRectangle(cornerRadius: 10))
+    }
+}
+
+// Angepasste Fehlermeldungskarte (nur Text, kein gesonderter Titel)
+private struct ErrorMessageCard: View {
+    let message: String
+    var body: some View {
+        VStack(spacing: 8) {
+            Text(message)
+                .font(.caption)
+                .multilineTextAlignment(.center)
+                .foregroundStyle(Theme.ctBlueDim)
+                .padding(.horizontal, 6)
+        }
+        .frame(maxWidth: .infinity)
+        .padding(12)
+        .background(Theme.cardBG)
+        .overlay(
+            RoundedRectangle(cornerRadius: 10)
+                .stroke(Theme.slotStrokeEmpty, lineWidth: 1)
+        )
         .clipShape(RoundedRectangle(cornerRadius: 10))
     }
 }

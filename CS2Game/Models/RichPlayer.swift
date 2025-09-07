@@ -202,8 +202,9 @@ extension Nation {
         case .BosniaAndHerzegovina: return "🇧🇦"
         case .Canada:               return "🇨🇦"
         case .Slovakia:             return "🇸🇰"
+        case .Brazil:               return "🇧🇷"
         // Weitere Nationen hier ergänzen …
-        default:                    return "🏳️"
+        default:                    return "[]"
         }
     }
 }
