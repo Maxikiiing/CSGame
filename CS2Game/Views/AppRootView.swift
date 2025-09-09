@@ -33,9 +33,9 @@ struct AppRootView: View {
         // 1) Dem System minimal Zeit geben, den ersten Frame zu zeichnen
         try? await Task.sleep(nanoseconds: 50_000_000) // 50 ms
 
-        // 2) Preloads parallel starten (klassische + „Rich“-Daten)
-        async let classic = DataLoader.shared.preload()
-        async let rich    = RichDataLoader.shared.preload()
+        // 2) Preloads parallel starten
+        async let classic = DataLoader.shared.preload()       // legacy (falls noch benötigt)
+        async let rich    = DataLoader.shared.preloadRich()   // <<< Rich v2 Remote + Fallback
 
         // 3) Kurze Mindestdauer, damit Splash nicht „flackert“
         try? await Task.sleep(nanoseconds: 250_000_000) // 0.25 s

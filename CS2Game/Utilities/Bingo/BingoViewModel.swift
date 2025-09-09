@@ -111,8 +111,21 @@ final class BingoViewModel: ObservableObject {
                 self.cells = Self.generateRandomBoard(rows: config.rows, cols: config.cols, seed: seed)
 
             case .remote(let url):
-                if let remote = await BingoLoader.shared.fetchBoard(from: url),
-                   remote.rows == config.rows, remote.cols == config.cols {
+                if let remote = await BingoLoader.shared.fetchBoard(from: url) {
+                    // Grid-Größe (und Titel) dynamisch vom Remote übernehmen
+                    let newTitle = remote.title
+                    let newRows  = remote.rows
+                    let newCols  = remote.cols
+
+                    // Config aktualisieren, damit Layout/ModeKey/Leaderboard die echte Größe kennen
+                    self.config = BingoConfig(
+                        title: newTitle.isEmpty ? self.config.title : newTitle,
+                        rows: newRows,
+                        cols: newCols,
+                        source: self.config.source
+                    )
+
+                    // Zellen aus Remote übernehmen
                     self.cells = remote.cells.map { BingoCell(condition: $0) }
                 } else {
                     // Challenge-Fehler → KEIN Random-Fallback
@@ -120,9 +133,21 @@ final class BingoViewModel: ObservableObject {
                     self.dataError = Self.genericErrorMessage
                 }
 
+
             case .bundle(let res):
-                if let local = BingoLoader.shared.loadLocal(named: res),
-                   local.rows == config.rows, local.cols == config.cols {
+                if let local = BingoLoader.shared.loadLocal(named: res) {
+                    // Grid-Größe (und Titel) dynamisch vom Bundle-Board übernehmen
+                    let newTitle = local.title
+                    let newRows  = local.rows
+                    let newCols  = local.cols
+
+                    self.config = BingoConfig(
+                        title: newTitle.isEmpty ? self.config.title : newTitle,
+                        rows: newRows,
+                        cols: newCols,
+                        source: self.config.source
+                    )
+
                     self.cells = local.cells.map { BingoCell(condition: $0) }
                 } else {
                     // Wenn dieses Bundle-Board eine Challenge ist → KEIN Random-Fallback
@@ -130,10 +155,11 @@ final class BingoViewModel: ObservableObject {
                         self.cells = []
                         self.dataError = Self.genericErrorMessage
                     } else {
-                        // sonst darfst du weiterhin ein Random nutzen
+                        // sonst: Random-Fallback
                         self.cells = Self.generateRandomBoard(rows: config.rows, cols: config.cols)
                     }
                 }
+
             }
 
             // Nur Kandidaten ziehen, wenn kein Fehler
@@ -164,8 +190,19 @@ final class BingoViewModel: ObservableObject {
             Task { @MainActor in
                 switch config.source {
                 case .remote(let url):
-                    if let remote = await BingoLoader.shared.fetchBoard(from: url),
-                       remote.rows == config.rows, remote.cols == config.cols {
+                    if let remote = await BingoLoader.shared.fetchBoard(from: url) {
+                        // Größe/Titel an Remote anpassen
+                        let newTitle = remote.title
+                        let newRows  = remote.rows
+                        let newCols  = remote.cols
+
+                        self.config = BingoConfig(
+                            title: newTitle.isEmpty ? self.config.title : newTitle,
+                            rows: newRows,
+                            cols: newCols,
+                            source: self.config.source
+                        )
+
                         self.cells = remote.cells.map { BingoCell(condition: $0) }
                         self.resetToExistingBoard()
                     } else {
@@ -173,15 +210,27 @@ final class BingoViewModel: ObservableObject {
                         self.dataError = Self.genericErrorMessage
                     }
 
+
                 case .bundle(let res):
-                    if let local = BingoLoader.shared.loadLocal(named: res),
-                       local.rows == config.rows, local.cols == config.cols {
+                    if let local = BingoLoader.shared.loadLocal(named: res) {
+                        let newTitle = local.title
+                        let newRows  = local.rows
+                        let newCols  = local.cols
+
+                        self.config = BingoConfig(
+                            title: newTitle.isEmpty ? self.config.title : newTitle,
+                            rows: newRows,
+                            cols: newCols,
+                            source: self.config.source
+                        )
+
                         self.cells = local.cells.map { BingoCell(condition: $0) }
                         self.resetToExistingBoard()
                     } else {
                         self.cells = []
                         self.dataError = Self.genericErrorMessage
                     }
+
 
                 case .random, .seeded:
                     // Fehler hier unwahrscheinlich – einfach neu starten

@@ -64,4 +64,9 @@ final class BingoLeaderboard {
         cache.removeAll { $0.modeKey == modeKey }
         persist()
     }
+    // ✅ Lesender Vollzugriff: wird von der Leaderboard-View für Gruppierungen genutzt
+    func allEntries() -> [LeaderboardEntry] {
+        cache
+    }
+
 }

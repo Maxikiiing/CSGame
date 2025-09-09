@@ -14,11 +14,11 @@ enum GameStatKey: Equatable {
     case deaths
     case aces
 
-    func value(for p: Player) -> Int {
+    func value(for p: RichPlayer) -> Int {
         switch self {
         case .kills:  return p.kills
         case .deaths: return p.deaths
-        case .aces:   return p.acesOrZero
+        case .aces:   return p.aces
         }
     }
 }
@@ -33,7 +33,7 @@ struct GameConfig: Equatable {
 struct Slot: Identifiable, Equatable {
     let id = UUID()
     let multiplier: Double
-    var player: Player? = nil
+    var player: RichPlayer? = nil
 }
 
 /// Result of trying to place the current candidate.
@@ -48,11 +48,11 @@ final class GameViewModel: ObservableObject {
     @Published private(set) var config: GameConfig
 
     // Große Arrays sind intern, um Render-Last gering zu halten
-    private var allPlayers: [Player] = []
-    private var availablePlayers: [Player] = []
+    private var allPlayers: [RichPlayer] = []
+    private var availablePlayers: [RichPlayer] = []
 
     @Published var slots: [Slot] = []
-    @Published var currentCandidate: Player?
+    @Published var currentCandidate: RichPlayer?
     @Published var gameOver: Bool = false
     @Published var dataError: String?
 
@@ -85,7 +85,7 @@ final class GameViewModel: ObservableObject {
         // laufenden Spin abbrechen
         cancelSpin()
 
-        let source = DataLoader.shared.loadPlayers()
+        let source = DataLoader.shared.loadRichPlayers()
         guard !source.isEmpty else {
             dataError = "No players loaded. Check your remote URL / bundle JSON."
             allPlayers = []; availablePlayers = []

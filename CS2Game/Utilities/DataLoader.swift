@@ -23,11 +23,17 @@ extension Notification.Name {
 final class DataLoader {
     static let shared = DataLoader()
 
-    /// Remote-Quelle (HTTPS/ATS-konform)
+    /// Remote-Quelle (legacy/classic)
     private let remoteURL = URL(string: "https://maxikiiing.github.io/CSData/players_real_data.json")!
+    /// Remote-Quelle für Rich v2
+    // Achtung: Liegt auf GitPages im Ordner "Bingo" und heißt wie die alte Datei,
+    // aber hat das neue RichPlayer-Schema.
+    private let remoteURLRichV2 = URL(string: "https://maxikiiing.github.io/CSData/Bingo/players_real_data.json")!
 
-    /// In-Memory-Cache (wird beim App-Start / Preload gefüllt)
+    /// In-Memory-Cache (legacy/classic)
     private var memoryCache: [Player]? = nil
+    /// In-Memory-Cache für Rich v2
+    private var memoryCacheRich: [RichPlayer]? = nil
 
     enum RemoteStatus {
         case unknown
@@ -38,12 +44,12 @@ final class DataLoader {
     /// Letzter Remote-Status (für initiale Anzeige)
     private(set) var lastRemoteStatus: RemoteStatus = .unknown
 
-    /// Ob der Cache (remote ODER bundle) bereit ist
-    var hasCache: Bool { memoryCache != nil }
+    /// Ob irgendein Cache (remote ODER bundle) bereit ist
+    var hasCache: Bool { memoryCache != nil || memoryCacheRich != nil }
 
     private init() {}
 
-    // MARK: - Öffentliche API
+    // MARK: - Öffentliche API (legacy)
 
     /// Asynchroner Preload – beim App-Start/Menu-Start aufrufen.
     /// Holt remote (oder nutzt Bundle als Fallback) und befüllt den In-Memory-Cache.
@@ -81,7 +87,41 @@ final class DataLoader {
         return []
     }
 
-    // MARK: - Remote
+    // MARK: - Öffentliche API (Rich v2)
+
+    /// Asynchroner Preload für Rich v2 – beim App-Start/Menu-Start aufrufen.
+    func preloadRich() async {
+        // 1) Versuche: remote laden
+        if let remote = try? await fetchRemoteRichV2() {
+            self.memoryCacheRich = remote
+            await postRemoteSuccess()
+            await postCacheReady()
+            return
+        }
+        // 2) Remote fehlgeschlagen → Bundle-Fallback über RichDataLoader (nutzt v2-Datei)
+        let bundled = RichDataLoader.shared.loadRichPlayers()
+        if !bundled.isEmpty {
+            self.memoryCacheRich = bundled
+            await postRemoteFailed()
+            await postCacheReady()
+            return
+        }
+        // 3) Gar nichts verfügbar
+        await postRemoteFailed()
+    }
+
+    /// Synchrone Abfrage für ViewModels (Rich v2):
+    /// - Gibt SOFORT den Memory-Cache zurück, wenn vorhanden.
+    /// - Startet sonst preloadRich() im Hintergrund und gibt [] zurück.
+    func loadRichPlayers() -> [RichPlayer] {
+        if let cached = memoryCacheRich {
+            return cached
+        }
+        Task { await self.preloadRich() }
+        return []
+    }
+
+    // MARK: - Remote (legacy)
 
     private func fetchRemote() async throws -> [Player] {
         let (data, response) = try await URLSession.shared.data(from: remoteURL)
@@ -100,7 +140,22 @@ final class DataLoader {
         return players
     }
 
-    // MARK: - Bundle Fallback (asynchron)
+    // MARK: - Remote (Rich v2)
+
+    private func fetchRemoteRichV2() async throws -> [RichPlayer] {
+        let (data, response) = try await URLSession.shared.data(from: remoteURLRichV2)
+        guard let http = response as? HTTPURLResponse, (200..<300).contains(http.statusCode) else {
+            throw URLError(.badServerResponse)
+        }
+        let players = try await Task.detached(priority: .userInitiated) {
+            let decoder = JSONDecoder()
+            return try decoder.decode([RichPlayer].self, from: data)
+        }.value
+        print("✅ DataLoader: loaded \(players.count) rich players (v2) from remote.")
+        return players
+    }
+
+    // MARK: - Bundle Fallback (legacy, asynchron)
 
     private func loadFromBundleAsync() async -> [Player]? {
         await Task.detached(priority: .utility) { () -> [Player]? in
