@@ -8,12 +8,20 @@
 import SwiftUI
 
 /// Basis-View für alle Bingo-Varianten. Die einzelnen Modi liefern nur die Config.
-struct BingoBaseView: View {
+struct BingoBaseView<Footer: View>: View {
     @StateObject var vm: BingoViewModel
+    private let footer: () -> Footer
+
+    init(vm: BingoViewModel, @ViewBuilder footer: @escaping () -> Footer = { EmptyView() }) {
+        _vm = StateObject(wrappedValue: vm)
+        self.footer = footer
+    }
+
 
     var body: some View {
         GeometryReader { geo in
             let metrics = LayoutMetrics(geo: geo, rows: vm.config.rows, cols: vm.config.cols)
+            let isChallenge = vm.isChallengeMode()
 
             ScrollView {
                 VStack(spacing: 14) {
@@ -41,12 +49,17 @@ struct BingoBaseView: View {
                     }
 
                     ControlsSection(
-                        onTryAgain: { vm.tryAgain() },
+                        primaryTitle: isChallenge ? "Try Again" : "New Board",
+                        onPrimary: { isChallenge ? vm.tryAgain() : vm.startNewBoard() },
                         onNewPlayer: { vm.rerollCandidate() },
                         isNewPlayerEnabled: vm.canReroll && vm.dataError == nil,
                         modeKey: vm.modeKey(),
                         modeTitle: vm.config.title
                     )
+                    // Modusspezifischer Footer (z. B. Grid-Size-Picker für Random Grid)
+                    footer()
+                        .frame(maxWidth: 360)
+
                 }
                 .padding(.top, 12)
                 .padding(.bottom, 20)
@@ -192,7 +205,8 @@ private struct NameCardSection: View {
 }
 
 private struct ControlsSection: View {
-    let onTryAgain: () -> Void
+    let primaryTitle: String
+    let onPrimary: () -> Void
     let onNewPlayer: () -> Void
     let isNewPlayerEnabled: Bool
 
@@ -202,10 +216,9 @@ private struct ControlsSection: View {
 
     var body: some View {
         VStack(spacing: 12) {
-            // Linker Button: "Try Again" – startet dasselbe Board neu oder versucht Remote erneut zu laden
             HStack(spacing: 12) {
-                Button(action: onTryAgain) {
-                    Text("Try Again")
+                Button(action: onPrimary) {
+                    Text(primaryTitle)
                         .font(.headline)
                         .foregroundStyle(Theme.tYellow)
                         .frame(maxWidth: .infinity)
@@ -228,7 +241,7 @@ private struct ControlsSection: View {
                         .background(Theme.cardBG)
                         .overlay(
                             RoundedRectangle(cornerRadius: 10)
-                                .stroke(Theme.slotStrokeEmpty, lineWidth: 1)
+                                .stroke(Theme.ctBlue, lineWidth: 1)
                         )
                         .clipShape(RoundedRectangle(cornerRadius: 10))
                 }
@@ -253,7 +266,7 @@ private struct ControlsSection: View {
                 .background(Theme.cardBG)
                 .overlay(
                     RoundedRectangle(cornerRadius: 10)
-                        .stroke(Theme.slotStrokeEmpty, lineWidth: 1)
+                        .stroke(Theme.ctBlue, lineWidth: 1)
                 )
                 .clipShape(RoundedRectangle(cornerRadius: 10))
             }
@@ -384,7 +397,7 @@ private struct EmptyHintCard: View {
     }
 }
 
-// Angepasste Fehlermeldungskarte (nur Text, kein gesonderter Titel)
+// Fehlertext-Karte
 private struct ErrorMessageCard: View {
     let message: String
     var body: some View {

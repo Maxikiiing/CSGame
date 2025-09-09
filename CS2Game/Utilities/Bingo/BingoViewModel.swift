@@ -44,6 +44,41 @@ final class BingoViewModel: ObservableObject {
         startNewBoard()
     }
 
+    // MARK: - Public helpers (für die View)
+
+    /// Weekly/Monthly Challenge? (gilt für remote- sowie bundle-Varianten)
+    func isChallengeMode() -> Bool {
+        switch config.source {
+        case .remote(let url):
+            let s = url.absoluteString.lowercased()
+            return s.contains("/weekly/") || s.contains("/monthly/")
+        case .bundle(let res):
+            let r = res.lowercased()
+            return r.contains("weekly") || r.contains("monthly")
+        case .random, .seeded:
+            return false
+        }
+    }
+
+    func modeKey() -> String {
+        let size = "\(config.rows)x\(config.cols)"
+        switch config.source {
+        case .random:
+            return "random|\(size)"
+        case .seeded(let seed):
+            return "seeded:\(seed)|\(size)"
+        case .bundle(let res):
+            return "bundle:\(res)|\(size)"
+        case .remote(let url):
+            let name = url.lastPathComponent
+            if url.absoluteString.contains("/weekly/") { return "weekly:\(name)|\(size)" }
+            if url.absoluteString.contains("/monthly/") { return "monthly:\(name)|\(size)" }
+            return "remote:\(name)|\(size)"
+        }
+    }
+
+    // MARK: - Lifecycle
+
     func startNewBoard() {
         cancelSpin()
         gameOver = false
@@ -69,7 +104,7 @@ final class BingoViewModel: ObservableObject {
         Task { @MainActor in
             switch config.source {
             case .random:
-                // Random ist weiterhin möglich, da hier kein Remote-Fehlerkonzept greift.
+                // Random bleibt Random
                 self.cells = Self.generateRandomBoard(rows: config.rows, cols: config.cols)
 
             case .seeded(let seed):
@@ -80,7 +115,7 @@ final class BingoViewModel: ObservableObject {
                    remote.rows == config.rows, remote.cols == config.cols {
                     self.cells = remote.cells.map { BingoCell(condition: $0) }
                 } else {
-                    // ❗️Kein Random-Fallback → stattdessen Fehlermeldung
+                    // Challenge-Fehler → KEIN Random-Fallback
                     self.cells = []
                     self.dataError = Self.genericErrorMessage
                 }
@@ -90,12 +125,18 @@ final class BingoViewModel: ObservableObject {
                    local.rows == config.rows, local.cols == config.cols {
                     self.cells = local.cells.map { BingoCell(condition: $0) }
                 } else {
-                    // Wenn du hier auch KEIN Random willst, ersetze die nächste Zeile durch die Fehlermeldung wie oben.
-                    self.cells = Self.generateRandomBoard(rows: config.rows, cols: config.cols)
+                    // Wenn dieses Bundle-Board eine Challenge ist → KEIN Random-Fallback
+                    if self.isChallengeMode() {
+                        self.cells = []
+                        self.dataError = Self.genericErrorMessage
+                    } else {
+                        // sonst darfst du weiterhin ein Random nutzen
+                        self.cells = Self.generateRandomBoard(rows: config.rows, cols: config.cols)
+                    }
                 }
             }
 
-            // Nur Kandidaten ziehen, wenn kein Fehler vorliegt
+            // Nur Kandidaten ziehen, wenn kein Fehler
             if self.dataError == nil {
                 self.resetToExistingBoard() // setzt Timer/Kandidat neu und leert Platzierungen
             } else {
@@ -105,9 +146,9 @@ final class BingoViewModel: ObservableObject {
         }
     }
 
-    /// „Try Again“ Verhalten:
-    /// - Bei vorhandenem `dataError`: Board je nach Source erneut laden (Remote/Bundle), KEIN Random-Fallback.
-    /// - Ohne `dataError`: dieselbe Board-Konfiguration neu starten (Platzierungen leeren, Timer resetten), KEIN neues Grid.
+    /// „Try Again“:
+    /// - Bei Fehler: Board je nach Quelle erneut laden (ohne Random-Fallback bei Challenges).
+    /// - Ohne Fehler: dieselbe Board-Konfiguration neu starten (Platzierungen löschen), kein neues Grid.
     func tryAgain() {
         cancelSpin()
         gameOver = false
@@ -118,7 +159,7 @@ final class BingoViewModel: ObservableObject {
         currentCandidateIndex = nil
 
         if dataError != nil {
-            // Erneuter Ladeversuch für dasselbe Board (je nach Quelle)
+            // Erneuter Ladeversuch
             dataError = nil
             Task { @MainActor in
                 switch config.source {
@@ -143,29 +184,25 @@ final class BingoViewModel: ObservableObject {
                     }
 
                 case .random, .seeded:
-                    // Fehlerfall hier unwahrscheinlich – starte einfach neu mit derselben Konfiguration
+                    // Fehler hier unwahrscheinlich – einfach neu starten
                     self.resetToExistingBoard()
                 }
             }
         } else {
-            // Kein Fehler: einfach dasselbe Board von vorne spielen
+            // Kein Fehler: dasselbe Board erneut spielen
             resetToExistingBoard()
         }
     }
 
     /// Startet dasselbe Board neu: Platzierungen löschen, Timer zurücksetzen, Spielerpool auffüllen und neuen Kandidaten ziehen.
     private func resetToExistingBoard() {
-        // Platzierungen leeren (Zellen behalten ihre Bedingungen!)
-        for i in cells.indices {
-            cells[i].player = nil
-        }
-        // Spielerpool zurücksetzen
+        for i in cells.indices { cells[i].player = nil }
         availablePlayers = allPlayers
-        // Timer & Status
         resetTimer()
-        // Neuen Kandidaten ziehen
         drawNextCandidate()
     }
+
+    // MARK: - Helpers
 
     static func generateRandomBoard(rows: Int, cols: Int, seed: Int? = nil) -> [BingoCell] {
         let count = max(1, rows * cols)
@@ -186,7 +223,7 @@ final class BingoViewModel: ObservableObject {
 
     func placeCandidate(in cellID: UUID) -> BingoPlacementOutcome {
         guard !isSpinning, !isInteractionLocked,
-              dataError == nil, // bei Fehler keine Interaktion
+              dataError == nil,
               let candidate = currentCandidate,
               let cIdx = currentCandidateIndex,
               let i = cells.firstIndex(where: { $0.id == cellID && $0.player == nil })
@@ -300,7 +337,8 @@ final class BingoViewModel: ObservableObject {
         return p
     }
 
-    // Timer/Leaderboard
+    // MARK: - Timer/Leaderboard
+
     private func resetTimer() {
         isTimerRunning = false
         elapsed = 0
@@ -309,6 +347,7 @@ final class BingoViewModel: ObservableObject {
         timerCancellable?.cancel()
         timerCancellable = nil
     }
+
     private func startTimer() {
         guard !isTimerRunning else { return }
         startDate = Date()
@@ -321,6 +360,7 @@ final class BingoViewModel: ObservableObject {
                 self.elapsed = Date().timeIntervalSince(s)
             }
     }
+
     private func stopTimer() {
         guard isTimerRunning else { return }
         if let s = startDate { elapsed = Date().timeIntervalSince(s) }
@@ -328,25 +368,9 @@ final class BingoViewModel: ObservableObject {
         timerCancellable?.cancel()
         timerCancellable = nil
     }
+
     private func saveLeaderboard() {
         let key = modeKey()
         BingoLeaderboard.shared.addResult(modeKey: key, elapsed: elapsed)
-    }
-
-    func modeKey() -> String {
-        let size = "\(config.rows)x\(config.cols)"
-        switch config.source {
-        case .random:
-            return "random|\(size)"
-        case .seeded(let seed):
-            return "seeded:\(seed)|\(size)"
-        case .bundle(let res):
-            return "bundle:\(res)|\(size)"
-        case .remote(let url):
-            let name = url.lastPathComponent
-            if url.absoluteString.contains("/weekly/") { return "weekly:\(name)|\(size)" }
-            if url.absoluteString.contains("/monthly/") { return "monthly:\(name)|\(size)" }
-            return "remote:\(name)|\(size)"
-        }
     }
 }

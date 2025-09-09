@@ -249,7 +249,7 @@ enum BingoBlueprints {
 
     private static let LIMITS: [BingoSlotKind: Int] = [
         .min(.eDPI): 1,
-        .min(.kills): 3,
+        .min(.kills): 2,
         .min(.grandSlams): 1,
         .min(.majorMVPs): 1,
         .min(.age): 1,
@@ -265,8 +265,8 @@ enum BingoBlueprints {
             // --- Stats (deine Vorgaben) ---
             W(.min(stat: .kills,         choices: KILL_MIN_CHOICES),          3),
 
-            W(.min(stat: .deaths,        choices: MIN_DEATHS_CHOICES),        1),
-            W(.max(stat: .deaths,        choices: MAX_DEATHS_CHOICES),        1),
+            W(.min(stat: .deaths,        choices: MIN_DEATHS_CHOICES),        2),
+            W(.max(stat: .deaths,        choices: MAX_DEATHS_CHOICES),        2),
 
             W(.min(stat: .grandSlams,    choices: GRAND_SLAM_CHOICES),        1),
             W(.min(stat: .majorMVPs,     choices: MAJOR_MVP_CHOICES),         1),
@@ -274,7 +274,7 @@ enum BingoBlueprints {
             W(.min(stat: .sniper,        choices: SNIPER_MIN_CHOICES),        2),
             W(.max(stat: .sniper,        choices: SNIPER_MAX_CHOICES),        1),
 
-            W(.min(stat: .majors,        choices: MIN_MAJORS_CHOICES),        2),
+            W(.min(stat: .majors,        choices: MIN_MAJORS_CHOICES),        1),
             W(.min(stat: .sTierTrophies, choices: S_TIER_TROPHY_CHOICES),     1),
 
             // 👉 Neue Slottypen
@@ -304,7 +304,7 @@ enum BingoBlueprints {
             W(.kdMax(choices: KD_MAX_CHOICES),                                 1),
 
             // Attribute
-            W(.teamHistoryOneOf(COMMON_TEAMS),                                 2),
+            W(.teamHistoryOneOf(COMMON_TEAMS),                                 3),
             W(.nationOneOf(COMMON_NATIONS),                                    2)
         ],
         maxPerKindDefault: 2,

@@ -7,6 +7,8 @@
 
 import SwiftUI
 
+import SwiftUI
+
 struct BingoLeaderboardView: View {
     let modeKey: String
     let title: String
@@ -14,26 +16,35 @@ struct BingoLeaderboardView: View {
     @State private var entries: [LeaderboardEntry] = []
 
     var body: some View {
-        VStack(spacing: 16) {
-            Text(title)
-                .font(.title3).bold()
-                .foregroundStyle(Theme.ctBlue)
-
+        Group {
             if entries.isEmpty {
-                Text("No results yet")
-                    .font(.subheadline)
-                    .foregroundStyle(Theme.ctBlueDim)
-                    .padding(.top, 8)
-                Spacer()
+                // Kein List-Container → keine weißen Balken
+                VStack(spacing: 12) {
+                    Text(title)
+                        .font(.title3).bold()
+                        .foregroundStyle(Theme.ctBlue)
+                        .frame(maxWidth: .infinity, alignment: .leading)
+
+                    EmptyStateCard(
+                        message: "No results yet",
+                        hint: "Finish a board to record your best time."
+                    )
+                }
+                .frame(maxWidth: 360)
+                .padding()
+                .frame(maxWidth: .infinity, maxHeight: .infinity, alignment: .top)
+
             } else {
+                // Liste mit verstecktem System-Background
                 List {
-                    Section(header: Text("Top 5")) {
-                        ForEach(entries.prefix(5)) { e in
+                    Section {
+                        ForEach(entries) { e in
                             HStack {
                                 VStack(alignment: .leading, spacing: 4) {
-                                    Text(formatElapsed(e.elapsed))
+                                    Text(timeString(e.elapsed))
                                         .font(.headline)
                                         .foregroundStyle(Theme.ctBlue)
+
                                     Text(dateString(e.finishedAt))
                                         .font(.caption)
                                         .foregroundStyle(Theme.ctBlueDim)
@@ -42,26 +53,25 @@ struct BingoLeaderboardView: View {
                             }
                             .listRowBackground(Theme.cardBG)
                         }
+                    } header: {
+                        Text(title)
                     }
                 }
-                .scrollContentBackground(.hidden)
-                .background(Theme.bg)
+                .listStyle(.insetGrouped)
+                .scrollContentBackground(.hidden)   // <<< weiße Balken weg
+                .background(Theme.bg)               // <<< Theme-Background
             }
-
-            Spacer()
         }
-        .padding()
         .background(Theme.bg)
-        .tint(Theme.ctBlue)
-        .onAppear {
-            entries = BingoLeaderboard.shared.top(modeKey: modeKey, limit: 5)
-        }
         .toolbarBackground(Theme.bg, for: .navigationBar)
         .toolbarBackground(.visible, for: .navigationBar)
+        .onAppear {
+            entries = BingoLeaderboard.shared.all(modeKey: modeKey)
+        }
     }
 
-    private func formatElapsed(_ t: TimeInterval) -> String {
-        let totalMs = Int((t * 100).rounded()) // Hundertstel
+    private func timeString(_ t: TimeInterval) -> String {
+        let totalMs = Int((t * 100).rounded())
         let minutes = totalMs / 6000
         let seconds = (totalMs % 6000) / 100
         let hundredth = totalMs % 100
@@ -69,9 +79,35 @@ struct BingoLeaderboardView: View {
     }
 
     private func dateString(_ d: Date) -> String {
-        let df = DateFormatter()
-        df.dateStyle = .medium
-        df.timeStyle = .short
-        return df.string(from: d)
+        let f = DateFormatter()
+        f.dateStyle = .medium
+        f.timeStyle = .short
+        return f.string(from: d)
+    }
+}
+
+private struct EmptyStateCard: View {
+    let message: String
+    let hint: String
+
+    var body: some View {
+        VStack(spacing: 8) {
+            Text(message)
+                .font(.headline)
+                .foregroundStyle(Theme.ctBlue)
+
+            Text(hint)
+                .font(.caption)
+                .foregroundStyle(Theme.ctBlueDim)
+                .multilineTextAlignment(.center)
+        }
+        .frame(maxWidth: .infinity)
+        .padding(12)
+        .background(Theme.cardBG)
+        .overlay(
+            RoundedRectangle(cornerRadius: 10)
+                .stroke(Theme.slotStrokeEmpty, lineWidth: 1)
+        )
+        .clipShape(RoundedRectangle(cornerRadius: 10))
     }
 }
