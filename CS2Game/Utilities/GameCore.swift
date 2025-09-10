@@ -22,6 +22,15 @@ enum GameStatKey: Equatable {
         }
     }
 }
+private extension GameStatKey {
+    var keyName: String {
+        switch self {
+        case .kills:  return "kills"
+        case .deaths: return "deaths"
+        case .aces:   return "aces"
+        }
+    }
+}
 
 struct GameConfig: Equatable {
     let title: String
@@ -153,12 +162,13 @@ final class GameViewModel: ObservableObject {
 
         if slots.allSatisfy({ $0.player != nil }) {
             gameOver = true
+            saveLeaderboard()   // <<< Score sichern
             return .completed
         } else {
-            // Nach Placement: Slot-Machine-Spin → finaler nächster Kandidat
             startSpinAndSelectNext()
             return .placed
         }
+
     }
 
     // MARK: - Slot-Machine Spin mit 0.2s Nachlauf-Sperre
@@ -253,4 +263,14 @@ final class GameViewModel: ObservableObject {
     }
 
     var hasWon: Bool { gameOver && runningTotal >= config.goal }
+    // Eindeutiger Key pro Basismodus (Kills/Deaths/Aces)
+    func modeKey() -> String {
+        "base:\(config.stat.keyName)"
+    }
+
+    private func saveLeaderboard() {
+        BaseLeaderboard.shared.addResult(modeKey: modeKey(), score: runningTotal)
+    }
+
 }
+

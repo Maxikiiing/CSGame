@@ -68,5 +68,10 @@ final class BingoLeaderboard {
     func allEntries() -> [LeaderboardEntry] {
         cache
     }
+    // Entfernt ALLE Bingo-Einträge (für Settings)
+    func clearAll() {
+        cache.removeAll()
+        persist()
+    }
 
 }

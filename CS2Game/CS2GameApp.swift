@@ -13,7 +13,12 @@ import SwiftUI
 struct CS2GameApp: App {
     var body: some Scene {
         WindowGroup {
-            AppRootView()
+            NavigationStack {
+                AppRootView()
+                    .toolbarBackground(Theme.bg, for: .navigationBar)
+                    .toolbarBackground(.visible, for: .navigationBar)
+            }
         }
     }
 }
+

@@ -18,60 +18,72 @@ struct BingoLeaderboardView: View {
     @State private var parsed: ModeKeyParts?
 
     var body: some View {
-        ScrollView {
-            VStack(spacing: 14) {
-                Text(title)
-                    .font(.title3).bold()
-                    .foregroundStyle(Theme.ctBlue)
-                    .frame(maxWidth: .infinity, alignment: .leading)
+        ZStack {
+            // Vollflächiger CT-Background (über gesamte View-Hierarchie)
+            Theme.bg.ignoresSafeArea()
 
-                if isWeeklyOrMonthly, let parts = parsed {
-                    // Aktueller Zeitraum (Top 5)
-                    SectionHeader(text: parts.headerForCurrentSection)
-                    if currentPeriodTop.isEmpty {
-                        EmptyStateCard(
-                            message: "No results yet for \(parts.periodDisplay)",
-                            hint: "Finish a board to record your best time."
-                        )
-                    } else {
-                        VStack(spacing: 8) {
-                            ForEach(currentPeriodTop) { e in
-                                EntryRow(entry: e)
+            ScrollView {
+                // Outer-Füllrahmen: nimmt volle Breite der ScrollView ein
+                VStack(spacing: 0) {
+                    // Dein eigentlicher Inhalt, auf 360 begrenzt,
+                    // aber zentriert innerhalb der vollen Breite
+                    VStack(spacing: 14) {
+                        Text(title)
+                            .font(.title3).bold()
+                            .foregroundStyle(Theme.ctBlue)
+                            .frame(maxWidth: .infinity, alignment: .leading)
+
+                        if isWeeklyOrMonthly, let parts = parsed {
+                            // --- Aktueller Zeitraum (Top 5) ---
+                            SectionHeader(text: parts.headerForCurrentSection)
+                            if currentPeriodTop.isEmpty {
+                                EmptyStateCard(
+                                    message: "No results yet for \(parts.periodDisplay)",
+                                    hint: "Finish a board to record your best time."
+                                )
+                            } else {
+                                VStack(spacing: 8) {
+                                    ForEach(currentPeriodTop) { e in
+                                        EntryRow(entry: e)
+                                    }
+                                }
+                            }
+
+                            // --- Vergangenheit (pro Zeitraum 1 Bestwert) ---
+                            if !pastPeriodBests.isEmpty {
+                                SectionHeader(text: parts.headerForPastSection)
+                                VStack(spacing: 8) {
+                                    ForEach(pastPeriodBests) { e in
+                                        EntryRow(entry: e, showPeriodLeft: true)
+                                    }
+                                }
+                            }
+                        } else {
+                            // Random / andere Modi: unverändert
+                            if exactTop.isEmpty {
+                                EmptyStateCard(
+                                    message: "No results yet",
+                                    hint: "Finish a board to record your best time."
+                                )
+                            } else {
+                                VStack(spacing: 8) {
+                                    ForEach(exactTop) { e in EntryRow(entry: e) }
+                                }
                             }
                         }
                     }
-
-                    // Vergangene Zeiträume (jeweils Bestwert)
-                    if !pastPeriodBests.isEmpty {
-                        SectionHeader(text: parts.headerForPastSection)
-                        VStack(spacing: 8) {
-                            ForEach(pastPeriodBests) { e in
-                                EntryRow(entry: e, showPeriodLeft: true)
-                            }
-                        }
-                    }
-                } else {
-                    // Random / andere Modi: unverändert (Top 5 für den exakten modeKey)
-                    if exactTop.isEmpty {
-                        EmptyStateCard(
-                            message: "No results yet",
-                            hint: "Finish a board to record your best time."
-                        )
-                    } else {
-                        VStack(spacing: 8) {
-                            ForEach(exactTop) { e in EntryRow(entry: e) }
-                        }
-                    }
+                    .frame(maxWidth: 360)
+                    .padding()
+                    .frame(maxWidth: .infinity, alignment: .top) // <<< nimmt volle Breite ein
                 }
             }
-            .frame(maxWidth: 360)
-            .padding()
+            .scrollIndicators(.visible) // optional
         }
-        .background(Theme.bg)
         .toolbarBackground(Theme.bg, for: .navigationBar)
         .toolbarBackground(.visible, for: .navigationBar)
         .onAppear { reload() }
     }
+
 
     private func reload() {
         // 1) modeKey analysieren

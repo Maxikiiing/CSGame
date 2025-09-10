@@ -124,6 +124,30 @@ struct BaseGameView: View {
                         }
                         .buttonStyle(.plain)
                         .padding(.top, 6)
+                        
+                        NavigationLink {
+                            BaseLeaderboardView(modeKey: vm.modeKey(), title: "Best Scores")
+                                .toolbarBackground(Theme.bg, for: .navigationBar)
+                                .toolbarBackground(.visible, for: .navigationBar)
+                        } label: {
+                            HStack {
+                                Image(systemName: "trophy")
+                                Text("Leaderboard")
+                                    .font(.headline)
+                            }
+                            .foregroundStyle(Theme.ctBlue)
+                            .frame(maxWidth: 220)
+                            .padding(.vertical, 10)
+                            .background(Theme.cardBG)
+                            .overlay(
+                                RoundedRectangle(cornerRadius: 10)
+                                    .stroke(Theme.ctBlue, lineWidth: 1) // immer blauer Rand im CT-Theme
+                            )
+                            .clipShape(RoundedRectangle(cornerRadius: 10))
+                        }
+                        .buttonStyle(.plain)
+                        .padding(.top, 6)
+
                     }
 
                     Spacer(minLength: 8)

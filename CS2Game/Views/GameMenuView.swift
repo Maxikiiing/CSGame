@@ -90,6 +90,19 @@ struct GameMenuView: View {
             .background(Theme.bg)
             .toolbarBackground(Theme.bg, for: .navigationBar)
             .toolbarBackground(.visible, for: .navigationBar)
+            .toolbar {
+                ToolbarItem(placement: .navigationBarTrailing) {
+                    NavigationLink {
+                        SettingsView()
+                            .toolbarBackground(Theme.bg, for: .navigationBar)
+                            .toolbarBackground(.visible, for: .navigationBar)
+                    } label: {
+                        Image(systemName: "gearshape")
+                            .foregroundStyle(Theme.ctBlue)
+                    }
+                }
+            }
+
             // Initial status on appear
             .onAppear {
                 showRemoteWarning = (DataLoader.shared.lastRemoteStatus == .failed)
@@ -107,6 +120,7 @@ struct GameMenuView: View {
             }
         }
     }
+    
 }
 
 /// Yellow warning in T-theme when remote loading failed
