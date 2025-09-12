@@ -10,6 +10,7 @@ import SwiftUI
 /// Basis-View für alle Bingo-Varianten. Die einzelnen Modi liefern nur die Config.
 struct BingoBaseView<Footer: View>: View {
     @StateObject var vm: BingoViewModel
+    @Environment(\.scenePhase) private var scenePhase
     private let footer: () -> Footer
 
     init(vm: BingoViewModel, @ViewBuilder footer: @escaping () -> Footer = { EmptyView() }) {
@@ -68,6 +69,15 @@ struct BingoBaseView<Footer: View>: View {
             .background(Theme.bg)
         }
         .ignoresSafeArea(edges: .bottom)
+        .onChange(of: scenePhase) { _, phase in
+            if phase == .inactive || phase == .background {
+                vm.appWillResignActive()
+            }
+        }
+        .onDisappear {
+            vm.appWillResignActive()
+        }
+
     }
 }
 

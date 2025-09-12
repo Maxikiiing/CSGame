@@ -20,6 +20,7 @@ final class BingoViewModel: ObservableObject {
     @Published var gameOver: Bool = false
     @Published var dataError: String?
 
+
     var displayedName: String? { isSpinning ? spinnerDisplayName : currentCandidate?.name }
     var canReroll: Bool { !isSpinning && !isInteractionLocked && !gameOver && !availablePlayers.isEmpty }
 
@@ -422,4 +423,10 @@ final class BingoViewModel: ObservableObject {
         let key = modeKey()
         BingoLeaderboard.shared.addResult(modeKey: key, elapsed: elapsed)
     }
+    func appWillResignActive() {
+        cancelSpin()               // privater Helper existiert schon
+        isInteractionLocked = false
+    }
+    // App verlässt den Vordergrund / View verschwindet → Spin/Lock sicher beenden
+
 }

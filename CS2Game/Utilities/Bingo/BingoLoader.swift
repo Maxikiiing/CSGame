@@ -25,17 +25,27 @@ final class BingoLoader {
     // Remote
     func fetchBoard(from url: URL) async -> BingoBoardDTO? {
         do {
-            let (data, response) = try await URLSession.shared.data(from: url)
+            var req = URLRequest(url: url)
+            req.timeoutInterval = 12 // defensiver Timeout
+            let (data, response) = try await URLSession.shared.data(for: req)
+
             guard let http = response as? HTTPURLResponse, (200..<300).contains(http.statusCode) else {
                 return nil
             }
+            // Optional: simple Size-Grenze (1 MB)
+            guard data.count <= 1_000_000 else { return nil }
+
             let dto = try JSONDecoder().decode(BingoBoardDTO.self, from: data)
             return dto
+        } catch is CancellationError {
+            // Task wurde abgebrochen (z. B. View weg) → still
+            return nil
         } catch {
             print("❌ BingoLoader: error fetching \(url):", error)
             return nil
         }
     }
+
 
     // Lokal (Bundle)
     func loadLocal(named resource: String) -> BingoBoardDTO? {

@@ -9,6 +9,7 @@ import SwiftUI
 
 struct BaseGameView: View {
     @StateObject var vm: GameViewModel
+    @Environment(\.scenePhase) private var scenePhase
 
     var body: some View {
         GeometryReader { geo in
@@ -159,6 +160,15 @@ struct BaseGameView: View {
             .background(Theme.bg)
         }
         .ignoresSafeArea(edges: .bottom)
+        .onChange(of: scenePhase) { _, phase in
+            if phase == .inactive || phase == .background {
+                vm.appWillResignActive()
+            }
+        }
+        .onDisappear {
+            vm.appWillResignActive()
+        }
+
     }
 }
 

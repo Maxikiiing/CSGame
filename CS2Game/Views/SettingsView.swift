@@ -17,9 +17,9 @@ struct SettingsView: View {
     @State private var showClearBingoConfirm = false
     @State private var showClearBaseConfirm = false
 
-    // Links (BITTE anpassen)
-    private let privacyURL  = URL(string: "https://example.com/privacy")!
-    private let supportURL  = URL(string: "https://example.com/support")!
+    private let privacyURL  = URL(string: "https://Maxikiiing.github.io/CSData/privacy.html")!
+    private let supportURL  = URL(string: "https://Maxikiiing.github.io/CSData/support.html")!
+
 
     var body: some View {
         ZStack {
@@ -42,7 +42,7 @@ struct SettingsView: View {
                             subtitle: "Help improve the app by sharing usage stats.",
                             isOn: $analyticsEnabled
                         )
-                        .onChange(of: analyticsEnabled) { newVal in
+                        .onChange(of: analyticsEnabled) { _, newVal in
                             AnalyticsService.shared.event("settings_analytics", params: ["enabled": newVal])
                         }
 
@@ -51,7 +51,7 @@ struct SettingsView: View {
                             subtitle: "Send crash data to diagnose issues.",
                             isOn: $crashEnabled
                         )
-                        .onChange(of: crashEnabled) { newVal in
+                        .onChange(of: crashEnabled) { _, newVal in
                             AnalyticsService.shared.event("settings_crash", params: ["enabled": newVal])
                         }
                     }
@@ -90,6 +90,9 @@ struct SettingsView: View {
                         version: Bundle.main.appVersionString,
                         build: Bundle.main.appBuildString
                     )
+                    SectionHeader("Legal")
+                    LegalCard()
+
 
                     Spacer(minLength: 8)
                 }
@@ -269,3 +272,26 @@ private extension Bundle {
         object(forInfoDictionaryKey: "CFBundleVersion") as? String ?? "1"
     }
 }
+private struct LegalCard: View {
+    var body: some View {
+        VStack(alignment: .leading, spacing: 6) {
+            Text("Disclaimer")
+                .font(.headline)
+                .foregroundStyle(Theme.ctBlue)
+
+            Text("This app is not affiliated with or endorsed by Valve or the Counter-Strike franchise. All trademarks and player/team names are the property of their respective owners. Data is aggregated from publicly available sources.")
+                .font(.caption)
+                .foregroundStyle(Theme.ctBlueDim)
+                .fixedSize(horizontal: false, vertical: true)
+        }
+        .padding(.vertical, 10)
+        .padding(.horizontal, 12)
+        .background(Theme.cardBG)
+        .overlay(
+            RoundedRectangle(cornerRadius: 10)
+                .stroke(Theme.ctBlue, lineWidth: 1)
+        )
+        .clipShape(RoundedRectangle(cornerRadius: 10))
+    }
+}
+

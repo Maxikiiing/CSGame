@@ -11,6 +11,7 @@ import SwiftUI
 /// und wechselt danach ins eigentliche Menü.
 struct AppRootView: View {
     @State private var isReady = false
+    @StateObject private var net = NetworkMonitor.shared
 
     var body: some View {
         ZStack {
@@ -26,6 +27,16 @@ struct AppRootView: View {
         .task {
             await bootstrap()
         }
+        .onChange(of: net.isConnected) { _, connected in
+            guard connected else { return }
+            // Bei Netz-Rückkehr erneut vorladen (idempotent)
+            Task {
+                async let classic: Void = DataLoader.shared.preload()
+                async let rich:    Void = RichDataLoader.shared.preload()
+                _ = await (classic, rich)
+            }
+        }
+
     }
 
     /// Preloads ohne den ersten Frame zu blockieren.
@@ -34,14 +45,15 @@ struct AppRootView: View {
         try? await Task.sleep(nanoseconds: 50_000_000) // 50 ms
 
         // 2) Preloads parallel starten
-        async let classic = DataLoader.shared.preload()       // legacy (falls noch benötigt)
-        async let rich    = DataLoader.shared.preloadRich()   // <<< Rich v2 Remote + Fallback
+        async let classic: Void = DataLoader.shared.preload()     // legacy (falls noch benötigt)
+        async let rich:    Void = RichDataLoader.shared.preload() // Rich v2 Remote + Fallback
 
         // 3) Kurze Mindestdauer, damit Splash nicht „flackert“
         try? await Task.sleep(nanoseconds: 250_000_000) // 0.25 s
 
         // 4) Auf Preloads warten und ins Menü wechseln
         _ = await (classic, rich)
+
         await MainActor.run {
             withAnimation(.easeInOut(duration: 0.25)) {
                 isReady = true

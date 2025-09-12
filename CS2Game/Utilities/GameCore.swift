@@ -271,6 +271,11 @@ final class GameViewModel: ObservableObject {
     private func saveLeaderboard() {
         BaseLeaderboard.shared.addResult(modeKey: modeKey(), score: runningTotal)
     }
+    func appWillResignActive() {
+        cancelSpin()
+        isInteractionLocked = false
+    }
+
 
 }
 

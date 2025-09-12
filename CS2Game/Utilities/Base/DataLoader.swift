@@ -124,21 +124,19 @@ final class DataLoader {
     // MARK: - Remote (legacy)
 
     private func fetchRemote() async throws -> [Player] {
-        let (data, response) = try await URLSession.shared.data(from: remoteURL)
+        var req = URLRequest(url: remoteURL)
+        req.timeoutInterval = 12
+        let (data, response) = try await URLSession.shared.data(for: req)
 
         guard let http = response as? HTTPURLResponse, (200..<300).contains(http.statusCode) else {
             throw URLError(.badServerResponse)
         }
 
-        // Decode im Hintergrund-Task
-        let players = try await Task.detached(priority: .userInitiated) {
-            let decoder = JSONDecoder()
-            return try decoder.decode([Player].self, from: data)
+        return try await Task.detached(priority: .userInitiated) {
+            try JSONDecoder().decode([Player].self, from: data)
         }.value
-
-        print("✅ DataLoader: loaded \(players.count) players from remote.")
-        return players
     }
+
 
     // MARK: - Remote (Rich v2)
 
