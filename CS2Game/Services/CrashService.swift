@@ -7,14 +7,32 @@
 
 import Foundation
 
-protocol CrashServicing {
-    func record(error: Error, context: [String: Any]?)
-    func setUserProperty(_ key: String, value: String?)
-}
+/// Absturz-/Fehler-Fassade. Backend: zunächst No-Op.
+final class CrashService {
+    static let shared = CrashService()
 
-final class CrashService: CrashServicing {
-    static let shared: CrashServicing = CrashService()
+    private var enabled: Bool = UserDefaults.standard.bool(forKey: "settings_crash_enabled")
+
     private init() {}
-    func record(error: Error, context: [String: Any]? = nil) { /* no-op */ }
-    func setUserProperty(_ key: String, value: String?) { /* no-op */ }
+
+    func setEnabled(_ enabled: Bool) {
+        self.enabled = enabled
+        // Später: Crashlytics.crashlytics().setCrashlyticsCollectionEnabled(enabled)
+    }
+
+    func recordError(_ error: Error, context: [String: Any]? = nil) {
+        guard enabled else { return }
+        #if DEBUG
+        print("💥 [error] \(error) \(context ?? [:])")
+        #endif
+        // Später: Crashlytics.crashlytics().record(error: error)
+    }
+
+    func log(_ message: String) {
+        guard enabled else { return }
+        #if DEBUG
+        print("💥 [log] \(message)")
+        #endif
+        // Später: Crashlytics.crashlytics().log(message)
+    }
 }

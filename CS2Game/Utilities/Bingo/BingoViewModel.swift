@@ -165,6 +165,14 @@ final class BingoViewModel: ObservableObject {
 
             // Nur Kandidaten ziehen, wenn kein Fehler
             if self.dataError == nil {
+                AnalyticsService.shared.event("bingo_board_loaded", params: [
+                    "modeKey": modeKey(),
+                    "source":  "\(config.source)",
+                    "rows":    config.rows,
+                    "cols":    config.cols,
+                    "title":   config.title
+                ])
+
                 self.resetToExistingBoard() // setzt Timer/Kandidat neu und leert Platzierungen
             } else {
                 self.currentCandidate = nil
@@ -295,6 +303,13 @@ final class BingoViewModel: ObservableObject {
                 gameOver = true
                 stopTimer()
                 saveLeaderboard()
+                AnalyticsService.shared.event("bingo_round_complete", params: [
+                    "modeKey": modeKey(),
+                    "rows":    config.rows,
+                    "cols":    config.cols,
+                    "elapsed": elapsed
+                ])
+
                 return .completed
             } else {
                 startSpinAndSelectNext()
@@ -308,6 +323,7 @@ final class BingoViewModel: ObservableObject {
     func rerollCandidate() {
         guard !isSpinning, !isInteractionLocked, dataError == nil, !availablePlayers.isEmpty else { return }
         startSpinAndSelectNext(exclude: currentCandidate)
+        AnalyticsService.shared.event("bingo_reroll", params: ["modeKey": modeKey()])
     }
 
     private func startSpinAndSelectNext(duration: Double = 2.2, postLock: Double = 0.2, exclude: RichPlayer? = nil) {

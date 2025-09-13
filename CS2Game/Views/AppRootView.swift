@@ -57,6 +57,12 @@ struct AppRootView: View {
         await MainActor.run {
             withAnimation(.easeInOut(duration: 0.25)) {
                 isReady = true
+                AnalyticsService.shared.event("app_launch")
+
+                // initiale Consent-Anwendung (damit die Services sofort korrekt stehen)
+                AnalyticsService.shared.setEnabled(UserDefaults.standard.bool(forKey: "settings_analytics_enabled"))
+                CrashService.shared.setEnabled(UserDefaults.standard.bool(forKey: "settings_crash_enabled"))
+
             }
         }
     }

@@ -56,7 +56,10 @@ struct BaseGameView: View {
 
                     if let error = vm.dataError {
                         ErrorCard(message: error) { vm.startNewRound() }
+                            .frame(maxWidth: 360)                              // max 360 breit
+                            .frame(maxWidth: .infinity, alignment: .center)    // in der Mitte
                             .padding(.top, 6)
+
                     } else {
                         LazyVGrid(
                             columns: Array(repeating: GridItem(.flexible(), spacing: gridSpacing), count: columnsCount),

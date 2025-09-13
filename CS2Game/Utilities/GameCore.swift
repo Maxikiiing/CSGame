@@ -88,7 +88,20 @@ final class GameViewModel: ObservableObject {
         self.config = config
         self.slots = config.multipliers.map { Slot(multiplier: $0) }
         startNewRound()
+        NotificationCenter.default.publisher(for: .playersCacheReady)
+            .receive(on: RunLoop.main)
+            .sink { [weak self] _ in
+                guard let self else { return }
+                // Nur automatisch neu starten, wenn wir gerade *keine* Daten hatten
+                // (Fehler angezeigt oder leerer Pool).
+                if self.allPlayers.isEmpty || self.dataError != nil || self.slots.isEmpty {
+                    self.startNewRound()
+                }
+            }
+            .store(in: &cancellables)
+
     }
+    
 
     func startNewRound() {
         // laufenden Spin abbrechen
@@ -120,6 +133,12 @@ final class GameViewModel: ObservableObject {
         isSpinning = false
         isInteractionLocked = false
         lastAddedValue = 0
+        
+        AnalyticsService.shared.event("base_round_start", params: [
+            "title": config.title,
+            "stat":  String(describing: config.stat),
+            "goal":  config.goal
+        ])
 
         // Start-Kandidat kommt ohne Spin
         drawNextCandidate()
@@ -163,6 +182,14 @@ final class GameViewModel: ObservableObject {
         if slots.allSatisfy({ $0.player != nil }) {
             gameOver = true
             saveLeaderboard()   // <<< Score sichern
+            let success = (runningTotal >= config.goal)
+            AnalyticsService.shared.event("base_round_complete", params: [
+                "title":  config.title,
+                "score":  runningTotal,
+                "goal":   config.goal,
+                "success": success
+            ])
+
             return .completed
         } else {
             startSpinAndSelectNext()

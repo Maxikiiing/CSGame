@@ -57,9 +57,12 @@ struct GameMenuView: View {
                                 .toolbarBackground(Theme.bg, for: .navigationBar)
                                 .toolbarBackground(.visible, for: .navigationBar)
                         } label: {
-                            MenuCard(title: "100 000 Deaths",
-                                     subtitle: "Stack the multipliers",
-                                     systemImage: "skull")
+                            MenuCard(
+                                title: "100 000 Deaths",
+                                subtitle: "Stack the multipliers",
+                                systemImage: "heart.slash"   // vorher: "skull"
+                            )
+
                         }
 
                         NavigationLink {
@@ -132,6 +135,10 @@ struct GameMenuView: View {
             // egal ob remote oder bundle – Cache ist benutzbar → Banner aus
             hasCache = true
         }
+        .onAppear {
+            AnalyticsService.shared.screen("menu")
+        }
+
     }
 }
 

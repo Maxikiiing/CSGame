@@ -43,15 +43,16 @@ struct SettingsView: View {
                             isOn: $analyticsEnabled
                         )
                         .onChange(of: analyticsEnabled) { _, newVal in
+                            AnalyticsService.shared.setEnabled(newVal)
                             AnalyticsService.shared.event("settings_analytics", params: ["enabled": newVal])
                         }
-
                         ToggleRow(
                             title: "Crash Reports",
                             subtitle: "Send crash data to diagnose issues.",
                             isOn: $crashEnabled
                         )
                         .onChange(of: crashEnabled) { _, newVal in
+                            CrashService.shared.setEnabled(newVal)
                             AnalyticsService.shared.event("settings_crash", params: ["enabled": newVal])
                         }
                     }
